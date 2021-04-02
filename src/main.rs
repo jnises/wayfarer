@@ -8,6 +8,10 @@ use iced::{
 };
 use std::{sync::mpsc::{Sender, channel}, thread::{self, JoinHandle}, time::Instant};
 
+struct MidiReader {
+    
+}
+
 struct Synth {
     sample_rate: u32,
     channels: usize,

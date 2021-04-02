@@ -11,3 +11,4 @@ iced = { version = "0.3", features = ["canvas", "tokio"] }
 palette = "0.5"
 chrono = "0.4"
 cpal = "0.13"
+midir = "0.7"
