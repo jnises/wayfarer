@@ -7,49 +7,61 @@ use iced::{
     executor, time, window, Application, Clipboard, Color, Command, Container, Element, Length,
     Settings, Subscription, Text,
 };
-use midir::MidiInput;
-use std::{convert::TryFrom, thread::{self, JoinHandle}, time::Instant};
+use midir::{MidiInput, MidiInputConnection};
+use std::{
+    convert::TryFrom,
+    thread::{self, JoinHandle},
+    time::Instant,
+};
 
 enum NoteEvent {
-    On{freq: f32, velocity: f32},
+    On { freq: f32, velocity: f32 },
     Off,
 }
 
 struct MidiReader {
+    // we receive midi input as long as this is alive
     #[allow(dead_code)]
-    handle: JoinHandle<()>,
-    #[allow(dead_code)]
-    shutdown: channel::Sender<()>,
+    connection: Option<MidiInputConnection<()>>,
 }
 
 impl MidiReader {
     fn start(callback: channel::Sender<NoteEvent>) -> Self {
-        let (tx, rx) = channel::bounded(1);
-        let handle = thread::spawn(move || {
-            let midi = MidiInput::new("wayfarer").unwrap();
-            let ports = midi.ports();
-            if let Some(port) = ports.first() {
-                let name = midi.port_name(port).unwrap();
-                println!("port: {}", name);
-                let _connection = midi.connect(port, &name, move |_time_ms, message, _| {
-                    let message = wmidi::MidiMessage::try_from(message).unwrap();
-                    match message {
-                        wmidi::MidiMessage::NoteOn(_, note, velocity) => {
-                            let norm_vel = (u8::from(velocity) - u8::from(wmidi::U7::MIN)) as f32 / (u8::from(wmidi::U7::MAX) - u8::from(wmidi::U7::MIN)) as f32;
-                            callback.send(NoteEvent::On{freq: note.to_freq_f32(), velocity: norm_vel}).unwrap();
+        let midi = MidiInput::new("wayfarer").unwrap();
+        let ports = midi.ports();
+        if let Some(port) = ports.first() {
+            let name = midi.port_name(port).unwrap();
+            println!("port: {}", name);
+            let connection = midi
+                .connect(
+                    port,
+                    &name,
+                    move |_time_ms, message, _| {
+                        let message = wmidi::MidiMessage::try_from(message).unwrap();
+                        match message {
+                            wmidi::MidiMessage::NoteOn(_, note, velocity) => {
+                                let norm_vel = (u8::from(velocity) - u8::from(wmidi::U7::MIN))
+                                    as f32
+                                    / (u8::from(wmidi::U7::MAX) - u8::from(wmidi::U7::MIN)) as f32;
+                                callback
+                                    .send(NoteEvent::On {
+                                        freq: note.to_freq_f32(),
+                                        velocity: norm_vel,
+                                    })
+                                    .unwrap();
+                            }
+                            wmidi::MidiMessage::NoteOff(_, _note, _) => {
+                                callback.send(NoteEvent::Off).unwrap();
+                            }
+                            _ => {}
                         }
-                        wmidi::MidiMessage::NoteOff(_, _note, _) => {
-                            callback.send(NoteEvent::Off).unwrap();
-                        }
-                        _ => {}
-                    }
-                }, ());
-                rx.recv().unwrap();
-            }
-        });
-        MidiReader {
-            handle,
-            shutdown: tx,
+                    },
+                    (),
+                )
+                .unwrap();
+            MidiReader { connection: Some(connection) }
+        } else {
+            MidiReader { connection: None }
         }
     }
 }
@@ -75,7 +87,8 @@ impl Synth {
 
     fn play(&mut self, output: &mut [f32]) {
         for frame in output.chunks_mut(self.channels) {
-            let value = self.amplitude * (self.clock as f32 / self.sample_rate as f32 * self.freq).sin();
+            let value =
+                self.amplitude * (self.clock as f32 / self.sample_rate as f32 * self.freq).sin();
             self.clock += 1;
             for sample in frame.iter_mut() {
                 *sample = value;
@@ -119,7 +132,7 @@ impl AudioManager {
                     move |data: &mut [f32], _: &OutputCallbackInfo| {
                         while let Ok(event) = midi_events.try_recv() {
                             match event {
-                                NoteEvent::On{freq, velocity} => {
+                                NoteEvent::On { freq, velocity } => {
                                     synth.freq = freq;
                                     synth.amplitude = velocity;
                                 }
@@ -210,7 +223,7 @@ impl Application for Wayfarer {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        time::every(std::time::Duration::from_millis(16)).map(Message::Tick)
+        time::every(std::time::Duration::from_millis(200)).map(Message::Tick)
     }
 
     fn view(&mut self) -> Element<Message> {
