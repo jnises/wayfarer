@@ -2,14 +2,56 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     OutputCallbackInfo, SampleFormat, SampleRate,
 };
+use crossbeam::channel;
 use iced::{
     executor, time, window, Application, Clipboard, Color, Command, Container, Element, Length,
     Settings, Subscription, Text,
 };
-use std::{sync::mpsc::{Sender, channel}, thread::{self, JoinHandle}, time::Instant};
+use midir::MidiInput;
+use std::{convert::TryFrom, thread::{self, JoinHandle}, time::Instant};
+
+enum NoteEvent {
+    On{freq: f32, velocity: f32},
+    Off(),
+}
 
 struct MidiReader {
-    
+    #[allow(dead_code)]
+    handle: JoinHandle<()>,
+    #[allow(dead_code)]
+    shutdown: channel::Sender<()>,
+}
+
+impl MidiReader {
+    fn start(callback: channel::Sender<NoteEvent>) -> Self {
+        let (tx, rx) = channel::bounded(1);
+        let handle = thread::spawn(move || {
+            let midi = MidiInput::new("wayfarer").unwrap();
+            let ports = midi.ports();
+            if let Some(port) = ports.first() {
+                let name = midi.port_name(port).unwrap();
+                println!("port: {}", name);
+                let _connection = midi.connect(port, &name, move |_time_ms, message, _| {
+                    let message = wmidi::MidiMessage::try_from(message).unwrap();
+                    match message {
+                        wmidi::MidiMessage::NoteOn(_, note, velocity) => {
+                            let norm_vel = (u8::from(velocity) - u8::from(wmidi::U7::MIN)) as f32 / (u8::from(wmidi::U7::MAX) - u8::from(wmidi::U7::MIN)) as f32;
+                            callback.send(NoteEvent::On{freq: note.to_freq_f32(), velocity: norm_vel}).unwrap();
+                        }
+                        wmidi::MidiMessage::NoteOff(_, _note, _) => {
+                            callback.send(NoteEvent::Off()).unwrap();
+                        }
+                        _ => {}
+                    }
+                }, ());
+                rx.recv().unwrap();
+            }
+        });
+        MidiReader {
+            handle,
+            shutdown: tx,
+        }
+    }
 }
 
 struct Synth {
@@ -29,7 +71,7 @@ impl Synth {
 
     fn play(&mut self, output: &mut [f32]) {
         for frame in output.chunks_mut(self.channels) {
-            let value = (self.clock as f32 / self.sample_rate as f32 * 440f32).sin();
+            let value = (self.clock as f32 / self.sample_rate as f32 * 4f32 * 440f32).sin();
             self.clock += 1;
             for sample in frame.iter_mut() {
                 *sample = value;
@@ -42,12 +84,12 @@ struct AudioManager {
     #[allow(dead_code)]
     handle: JoinHandle<()>,
     #[allow(dead_code)]
-    shutdown: Sender<()>,
+    shutdown: channel::Sender<()>,
 }
 
 impl AudioManager {
     fn start() -> Self {
-        let (tx, rx) = channel();
+        let (tx, rx) = channel::bounded(1);
         let handle = thread::spawn(move || {
             let host = cpal::default_host();
             let device = host
