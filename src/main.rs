@@ -158,20 +158,6 @@ impl AudioManager {
     }
 }
 
-fn main() -> iced::Result {
-    let (miditx, midirx) = channel::bounded(256);
-    let _midi = MidiReader::start(miditx);
-    let _audio = AudioManager::start(midirx);
-    Wayfarer::run(Settings {
-        antialiasing: true,
-        window: window::Settings {
-            size: (400, 200),
-            ..window::Settings::default()
-        },
-        ..Settings::default()
-    })
-}
-
 struct GuiState {
     start: Instant,
     now: Instant,
@@ -239,4 +225,19 @@ impl Application for Wayfarer {
             .center_y()
             .into()
     }
+}
+
+fn main() -> iced::Result {
+    let (miditx, midirx) = channel::bounded(256);
+    let _midi = MidiReader::start(miditx);
+    let _audio = AudioManager::start(midirx);
+    Wayfarer::run(Settings {
+        antialiasing: true,
+        window: window::Settings {
+            size: (400, 200),
+            resizable: false,
+            ..window::Settings::default()
+        },
+        ..Settings::default()
+    })
 }
