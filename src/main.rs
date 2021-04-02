@@ -12,7 +12,7 @@ use std::{convert::TryFrom, thread::{self, JoinHandle}, time::Instant};
 
 enum NoteEvent {
     On{freq: f32, velocity: f32},
-    Off(),
+    Off,
 }
 
 struct MidiReader {
@@ -39,7 +39,7 @@ impl MidiReader {
                             callback.send(NoteEvent::On{freq: note.to_freq_f32(), velocity: norm_vel}).unwrap();
                         }
                         wmidi::MidiMessage::NoteOff(_, _note, _) => {
-                            callback.send(NoteEvent::Off()).unwrap();
+                            callback.send(NoteEvent::Off).unwrap();
                         }
                         _ => {}
                     }
@@ -58,6 +58,8 @@ struct Synth {
     sample_rate: u32,
     channels: usize,
     clock: u64,
+    freq: f32,
+    amplitude: f32,
 }
 
 impl Synth {
@@ -66,12 +68,14 @@ impl Synth {
             sample_rate,
             channels,
             clock: 0,
+            freq: 0f32,
+            amplitude: 0f32,
         }
     }
 
     fn play(&mut self, output: &mut [f32]) {
         for frame in output.chunks_mut(self.channels) {
-            let value = (self.clock as f32 / self.sample_rate as f32 * 4f32 * 440f32).sin();
+            let value = self.amplitude * (self.clock as f32 / self.sample_rate as f32 * self.freq).sin();
             self.clock += 1;
             for sample in frame.iter_mut() {
                 *sample = value;
@@ -88,7 +92,7 @@ struct AudioManager {
 }
 
 impl AudioManager {
-    fn start() -> Self {
+    fn start(midi_events: channel::Receiver<NoteEvent>) -> Self {
         let (tx, rx) = channel::bounded(1);
         let handle = thread::spawn(move || {
             let host = cpal::default_host();
@@ -113,6 +117,17 @@ impl AudioManager {
                 .build_output_stream(
                     &config,
                     move |data: &mut [f32], _: &OutputCallbackInfo| {
+                        while let Ok(event) = midi_events.try_recv() {
+                            match event {
+                                NoteEvent::On{freq, velocity} => {
+                                    synth.freq = freq;
+                                    synth.amplitude = velocity;
+                                }
+                                NoteEvent::Off => {
+                                    synth.amplitude = 0f32;
+                                }
+                            }
+                        }
                         synth.play(data);
                     },
                     |error| {
@@ -131,7 +146,9 @@ impl AudioManager {
 }
 
 fn main() -> iced::Result {
-    let _audio = AudioManager::start();
+    let (miditx, midirx) = channel::bounded(256);
+    let _midi = MidiReader::start(miditx);
+    let _audio = AudioManager::start(midirx);
     Wayfarer::run(Settings {
         antialiasing: true,
         window: window::Settings {
