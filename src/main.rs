@@ -88,7 +88,7 @@ impl Synth {
     fn play(&mut self, output: &mut [f32]) {
         for frame in output.chunks_mut(self.channels) {
             let value =
-                self.amplitude * (self.clock as f32 / self.sample_rate as f32 * self.freq).sin();
+                self.amplitude * (self.clock as f32 / self.sample_rate as f32 * self.freq * std::f32::consts::PI).sin();
             self.clock += 1;
             for sample in frame.iter_mut() {
                 *sample = value;
