@@ -113,7 +113,10 @@ struct AudioManager {
 }
 
 impl AudioManager {
-    fn new(midi_events: channel::Receiver<NoteEvent>) -> Self {
+    fn new(
+        midi_events: channel::Receiver<NoteEvent>,
+        message_sender: channel::Sender<Message>,
+    ) -> Self {
         let (tx, rx) = channel::bounded(1);
         let handle = thread::spawn(move || {
             let host = cpal::default_host();
@@ -156,6 +159,9 @@ impl AudioManager {
                     },
                 )
                 .unwrap();
+            message_sender
+                .send(Message::AudioName(device.name().unwrap()))
+                .unwrap();
             stream.play().unwrap();
             rx.recv().unwrap();
         });
@@ -168,6 +174,7 @@ impl AudioManager {
 
 enum Message {
     MidiName(String),
+    AudioName(String),
 }
 
 type MessageReceiver = Option<channel::Receiver<Message>>;
@@ -176,6 +183,7 @@ struct Wayfarer {
     start: Instant,
     now: Instant,
     midi_interface_name: Option<String>,
+    audio_interface_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -195,6 +203,7 @@ impl Application for Wayfarer {
                 start: Instant::now(),
                 now: Instant::now(),
                 midi_interface_name: None,
+                audio_interface_name: None,
             },
             Command::none(),
         )
@@ -219,6 +228,9 @@ impl Application for Wayfarer {
                             Message::MidiName(s) => {
                                 self.midi_interface_name = Some(s);
                             }
+                            Message::AudioName(s) => {
+                                self.audio_interface_name = Some(s);
+                            }
                         }
                     }
                 }
@@ -241,6 +253,9 @@ impl Application for Wayfarer {
                 .push(Space::with_height(Length::Units(10)))
                 .push(Row::new().push(Text::new("midi: ")).push(Text::new(
                     self.midi_interface_name.as_deref().unwrap_or("-"),
+                )))
+                .push(Row::new().push(Text::new("audio: ")).push(Text::new(
+                    self.audio_interface_name.as_deref().unwrap_or("-"),
                 ))),
         )
         .padding(20)
@@ -251,8 +266,8 @@ impl Application for Wayfarer {
 fn main() -> iced::Result {
     let (messagetx, messagerx) = channel::bounded(256);
     let (miditx, midirx) = channel::bounded(256);
-    let _midi = MidiReader::new(miditx, messagetx);
-    let _audio = AudioManager::new(midirx);
+    let _midi = MidiReader::new(miditx, messagetx.clone());
+    let _audio = AudioManager::new(midirx, messagetx);
     Wayfarer::run(Settings {
         flags: Some(messagerx),
         antialiasing: true,
