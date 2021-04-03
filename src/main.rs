@@ -64,6 +64,7 @@ impl AudioManager {
         message_sender: channel::Sender<Message>,
     ) -> Self {
         let (tx, rx) = channel::bounded(1);
+        // run this in a thread since it causes errors if run before the gui on a thread
         let handle = thread::spawn(move || {
             let host = cpal::default_host();
             let device = host
