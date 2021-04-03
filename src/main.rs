@@ -106,9 +106,7 @@ impl Synth {
 }
 
 struct AudioManager {
-    #[allow(dead_code)]
     handle: Option<JoinHandle<()>>,
-    #[allow(dead_code)]
     shutdown: channel::Sender<()>,
 }
 
