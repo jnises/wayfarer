@@ -107,7 +107,7 @@ impl Synth {
 
 struct AudioManager {
     #[allow(dead_code)]
-    handle: JoinHandle<()>,
+    handle: Option<JoinHandle<()>>,
     #[allow(dead_code)]
     shutdown: channel::Sender<()>,
 }
@@ -166,9 +166,16 @@ impl AudioManager {
             rx.recv().unwrap();
         });
         Self {
-            handle,
+            handle: Some(handle),
             shutdown: tx,
         }
+    }
+}
+
+impl Drop for AudioManager {
+    fn drop(&mut self) {
+        self.shutdown.send(()).unwrap();
+        self.handle.take().unwrap().join().unwrap();
     }
 }
 
