@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 iced = { version = "0.3", features = ["canvas", "tokio"] }
+iced_futures = { version = "0.3" }
 palette = "0.5"
 chrono = "0.4"
 cpal = "0.13"

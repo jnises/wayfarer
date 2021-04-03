@@ -2991,6 +2991,7 @@ dependencies = [
  "cpal",
  "crossbeam",
  "iced",
+ "iced_futures",
  "midir",
  "palette",
  "wmidi",

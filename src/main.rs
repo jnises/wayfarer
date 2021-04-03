@@ -4,8 +4,8 @@ use cpal::{
 };
 use crossbeam::channel;
 use iced::{
-    executor, time, window, Application, Clipboard, Color, Command, Container, Element, Length,
-    Settings, Subscription, Text,
+    executor, time, window, Application, Clipboard, Color, Column, Command, Container, Element,
+    Length, Row, Settings, Space, Subscription, Text,
 };
 use midir::{MidiInput, MidiInputConnection};
 use std::{
@@ -26,12 +26,14 @@ struct MidiReader {
 }
 
 impl MidiReader {
-    fn start(callback: channel::Sender<NoteEvent>) -> Self {
+    fn new(callback: channel::Sender<NoteEvent>, message_sender: channel::Sender<Message>) -> Self {
         let midi = MidiInput::new("wayfarer").unwrap();
         let ports = midi.ports();
         if let Some(port) = ports.first() {
             let name = midi.port_name(port).unwrap();
-            println!("port: {}", name);
+            message_sender
+                .send(Message::MidiName(name.clone()))
+                .unwrap();
             let connection = midi
                 .connect(
                     port,
@@ -44,14 +46,14 @@ impl MidiReader {
                                     as f32
                                     / (u8::from(wmidi::U7::MAX) - u8::from(wmidi::U7::MIN)) as f32;
                                 callback
-                                    .send(NoteEvent::On {
+                                    .try_send(NoteEvent::On {
                                         freq: note.to_freq_f32(),
                                         velocity: norm_vel,
                                     })
                                     .unwrap();
                             }
                             wmidi::MidiMessage::NoteOff(_, _note, _) => {
-                                callback.send(NoteEvent::Off).unwrap();
+                                callback.try_send(NoteEvent::Off).unwrap();
                             }
                             _ => {}
                         }
@@ -59,7 +61,9 @@ impl MidiReader {
                     (),
                 )
                 .unwrap();
-            MidiReader { connection: Some(connection) }
+            MidiReader {
+                connection: Some(connection),
+            }
         } else {
             MidiReader { connection: None }
         }
@@ -87,8 +91,12 @@ impl Synth {
 
     fn play(&mut self, output: &mut [f32]) {
         for frame in output.chunks_mut(self.channels) {
-            let value =
-                self.amplitude * (self.clock as f32 / self.sample_rate as f32 * self.freq * std::f32::consts::PI).sin();
+            let value = self.amplitude
+                * (self.clock as f32 / self.sample_rate as f32
+                    * self.freq
+                    * 2f32
+                    * std::f32::consts::PI)
+                    .sin();
             self.clock += 1;
             for sample in frame.iter_mut() {
                 *sample = value;
@@ -105,7 +113,7 @@ struct AudioManager {
 }
 
 impl AudioManager {
-    fn start(midi_events: channel::Receiver<NoteEvent>) -> Self {
+    fn new(midi_events: channel::Receiver<NoteEvent>) -> Self {
         let (tx, rx) = channel::bounded(1);
         let handle = thread::spawn(move || {
             let host = cpal::default_host();
@@ -158,38 +166,35 @@ impl AudioManager {
     }
 }
 
-struct GuiState {
+enum Message {
+    MidiName(String),
+}
+
+type MessageReceiver = Option<channel::Receiver<Message>>;
+struct Wayfarer {
+    message_receiver: MessageReceiver,
     start: Instant,
     now: Instant,
-}
-
-struct Wayfarer {
-    state: GuiState,
-}
-
-impl Default for GuiState {
-    fn default() -> Self {
-        GuiState {
-            start: Instant::now(),
-            now: Instant::now(),
-        }
-    }
+    midi_interface_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
-enum Message {
-    Tick(Instant),
+enum GuiMessage {
+    Tick,
 }
 
 impl Application for Wayfarer {
     type Executor = executor::Default;
-    type Message = Message;
-    type Flags = ();
+    type Message = GuiMessage;
+    type Flags = Option<channel::Receiver<Message>>;
 
-    fn new(_flags: ()) -> (Self, Command<Message>) {
+    fn new(receiver: Self::Flags) -> (Self, Command<GuiMessage>) {
         (
             Wayfarer {
-                state: GuiState::default(),
+                message_receiver: receiver,
+                start: Instant::now(),
+                now: Instant::now(),
+                midi_interface_name: None,
             },
             Command::none(),
         )
@@ -199,39 +204,57 @@ impl Application for Wayfarer {
         String::from("Wayfärer")
     }
 
-    fn update(&mut self, message: Message, _clipboard: &mut Clipboard) -> Command<Message> {
-        match message {
-            Message::Tick(instant) => {
-                self.state.now = instant;
+    fn update(
+        &mut self,
+        gui_message: GuiMessage,
+        _clipboard: &mut Clipboard,
+    ) -> Command<GuiMessage> {
+        match gui_message {
+            GuiMessage::Tick => {
+                self.now = Instant::now();
+                // can't seem to figure out the subscription feature.. so we just pump the channel here
+                if let Some(ref receiver) = self.message_receiver {
+                    for msg in receiver.try_iter() {
+                        match msg {
+                            Message::MidiName(s) => {
+                                self.midi_interface_name = Some(s);
+                            }
+                        }
+                    }
+                }
             }
         }
         Command::none()
     }
 
-    fn subscription(&self) -> Subscription<Message> {
-        time::every(std::time::Duration::from_millis(200)).map(Message::Tick)
+    fn subscription(&self) -> Subscription<GuiMessage> {
+        time::every(std::time::Duration::from_millis(100)).map(|_| GuiMessage::Tick)
     }
 
-    fn view(&mut self) -> Element<Message> {
-        let t = self.state.now - self.state.start;
+    fn view(&mut self) -> Element<GuiMessage> {
+        let t = self.now - self.start;
         let color = palette::Srgb::from(palette::Lch::new(50.0, 50.0, 10.0 * t.as_secs_f32()));
         let color = Color::from_rgb(color.red, color.green, color.blue);
-        let text = Text::new("Wayfärer").size(50).color(color);
-        Container::new(text)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .padding(20)
-            .center_x()
-            .center_y()
-            .into()
+        Container::new(
+            Column::new()
+                .push(Text::new("Wayfärer").size(50).color(color))
+                .push(Space::with_height(Length::Units(10)))
+                .push(Row::new().push(Text::new("midi: ")).push(Text::new(
+                    self.midi_interface_name.as_deref().unwrap_or("-"),
+                ))),
+        )
+        .padding(20)
+        .into()
     }
 }
 
 fn main() -> iced::Result {
+    let (messagetx, messagerx) = channel::bounded(256);
     let (miditx, midirx) = channel::bounded(256);
-    let _midi = MidiReader::start(miditx);
-    let _audio = AudioManager::start(midirx);
+    let _midi = MidiReader::new(miditx, messagetx);
+    let _audio = AudioManager::new(midirx);
     Wayfarer::run(Settings {
+        flags: Some(messagerx),
         antialiasing: true,
         window: window::Settings {
             size: (400, 200),
