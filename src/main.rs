@@ -135,6 +135,7 @@ impl AudioManager {
                 .with_sample_rate(SampleRate(48000).clamp(min_rate, max_rate))
                 .config();
             let mut synth = Synth::new(config.sample_rate.0, 2);
+            let message_sender_clone = message_sender.clone();
             let stream = device
                 .build_output_stream(
                     &config,
@@ -152,8 +153,8 @@ impl AudioManager {
                         }
                         synth.play(data);
                     },
-                    |error| {
-                        eprintln!("error: {:?}", error);
+                    move|error| {
+                        message_sender_clone.send(Message::Status(format!("error: {:?}", error))).unwrap();
                     },
                 )
                 .unwrap();
@@ -180,6 +181,7 @@ impl Drop for AudioManager {
 enum Message {
     MidiName(String),
     AudioName(String),
+    Status(String),
 }
 
 type MessageReceiver = Option<channel::Receiver<Message>>;
@@ -187,8 +189,9 @@ struct Wayfarer {
     message_receiver: MessageReceiver,
     start: Instant,
     now: Instant,
-    midi_interface_name: Option<String>,
-    audio_interface_name: Option<String>,
+    midi_interface_name: String,
+    audio_interface_name: String,
+    status_text: String,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -207,8 +210,9 @@ impl Application for Wayfarer {
                 message_receiver: receiver,
                 start: Instant::now(),
                 now: Instant::now(),
-                midi_interface_name: None,
-                audio_interface_name: None,
+                midi_interface_name: "-".to_string(),
+                audio_interface_name: "-".to_string(),
+                status_text: String::new(),
             },
             Command::none(),
         )
@@ -231,10 +235,13 @@ impl Application for Wayfarer {
                     for msg in receiver.try_iter() {
                         match msg {
                             Message::MidiName(s) => {
-                                self.midi_interface_name = Some(s);
+                                self.midi_interface_name = s;
                             }
                             Message::AudioName(s) => {
-                                self.audio_interface_name = Some(s);
+                                self.audio_interface_name = s;
+                            }
+                            Message::Status(s) => {
+                                self.status_text = s;
                             }
                         }
                     }
@@ -256,12 +263,18 @@ impl Application for Wayfarer {
             Column::new()
                 .push(Text::new("Wayfärer").size(50).color(color))
                 .push(Space::with_height(Length::Units(10)))
-                .push(Row::new().push(Text::new("midi: ")).push(Text::new(
-                    self.midi_interface_name.as_deref().unwrap_or("-"),
-                )))
-                .push(Row::new().push(Text::new("audio: ")).push(Text::new(
-                    self.audio_interface_name.as_deref().unwrap_or("-"),
-                ))),
+                .push(
+                    Row::new()
+                        .push(Text::new("midi: "))
+                        .push(Text::new(self.midi_interface_name.clone())),
+                )
+                .push(
+                    Row::new()
+                        .push(Text::new("audio: "))
+                        .push(Text::new(self.audio_interface_name.clone())),
+                )
+                .push(Space::with_height(Length::Units(10)))
+                .push(Text::new(self.status_text.clone())),
         )
         .padding(20)
         .into()
