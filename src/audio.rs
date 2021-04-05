@@ -40,9 +40,12 @@ impl AudioManager {
                     // just pick the first valid config
                     .next()
                     .ok_or_else(|| anyhow!("no valid output audio config found"))?;
-                let default_sample_rate = device.default_output_config()?.sample_rate();
+                let sample_rate = device.default_output_config()?.sample_rate().clamp(
+                    supported_config.min_sample_rate(),
+                    supported_config.max_sample_rate(),
+                );
                 let config = supported_config
-                    .with_sample_rate(default_sample_rate)
+                    .with_sample_rate(sample_rate)
                     // TODO make buffer size configurable
                     .config();
                 let message_sender_clone = message_sender.clone();
