@@ -1,29 +1,53 @@
+use crossbeam::channel;
+use wmidi::MidiMessage;
+
 // super simple synth
 // TODO make interesting
 
+type MidiChannel = channel::Receiver<MidiMessage<'static>>;
+
 pub struct Synth {
-    sample_rate: u32,
-    channels: usize,
     clock: u64,
+    midi_events: MidiChannel,
     freq: f32,
-    amplitude: f32,
+    velocity: f32,
 }
 
 impl Synth {
-    pub fn new(sample_rate: u32, channels: usize) -> Self {
+    pub fn new(midi_events: MidiChannel) -> Self {
         Self {
-            sample_rate,
-            channels,
             clock: 0,
-            freq: 0f32,
-            amplitude: 0f32,
+            midi_events,
+            freq: 440f32,
+            velocity: 0f32,
         }
     }
+}
 
-    pub fn play(&mut self, output: &mut [f32]) {
-        for frame in output.chunks_mut(self.channels) {
-            let value = self.amplitude
-                * (self.clock as f32 / self.sample_rate as f32
+pub trait SynthPlayer {
+    fn play(&mut self, sample_rate: u32, channels: usize, output: &mut [f32]);
+}
+
+impl SynthPlayer for Synth {
+    fn play(&mut self, sample_rate: u32, channels: usize, output: &mut [f32]) {
+        for message in self.midi_events.try_iter() {
+            match message {
+                wmidi::MidiMessage::NoteOn(_, note, velocity) => {
+                    let norm_vel = (u8::from(velocity) - u8::from(wmidi::U7::MIN)) as f32
+                        / (u8::from(wmidi::U7::MAX) - u8::from(wmidi::U7::MIN)) as f32;
+                    self.freq = note.to_freq_f32();
+                    self.velocity = norm_vel;
+                }
+                wmidi::MidiMessage::NoteOff(_, _note, _) => {
+                    self.velocity = 0f32;
+                }
+                _ => {}
+            }
+        }
+        for frame in output.chunks_mut(channels) {
+            // TODO mod clock before casting
+            let value = self.velocity
+                * (self.clock as f32 / sample_rate as f32
                     * self.freq
                     * 2f32
                     * std::f32::consts::PI)
@@ -33,13 +57,5 @@ impl Synth {
                 *sample = value;
             }
         }
-    }
-
-    pub fn set_freq(&mut self, freq: f32) {
-        self.freq = freq;
-    }
-
-    pub fn set_amplitude(&mut self, amplitude: f32) {
-        self.amplitude = amplitude;
     }
 }

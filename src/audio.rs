@@ -1,6 +1,4 @@
-use crate::message::Message;
-use crate::midi::NoteEvent;
-use crate::synth::Synth;
+use crate::synth::SynthPlayer;
 use anyhow::{anyhow, Result};
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
@@ -9,16 +7,20 @@ use cpal::{
 use crossbeam::channel;
 use std::thread::{self, JoinHandle};
 
+pub enum Message {
+    Status(String),
+    AudioName(String),
+}
+
 pub struct AudioManager {
     handle: Option<JoinHandle<()>>,
     shutdown: channel::Sender<()>,
 }
 
 impl AudioManager {
-    pub fn new(
-        midi_events: channel::Receiver<NoteEvent>,
-        // TODO callback trait instead of channel
+    pub fn new<T: SynthPlayer + Send + 'static>(
         message_sender: channel::Sender<Message>,
+        mut synth: T,
     ) -> Self {
         let (shutdown_tx, shutdown_rx) = channel::bounded(1);
         // run this in a thread since it causes errors if run before the gui on a thread
@@ -43,23 +45,13 @@ impl AudioManager {
                     .with_sample_rate(default_sample_rate)
                     // TODO make buffer size configurable
                     .config();
-                let mut synth = Synth::new(config.sample_rate.0, 2);
                 let message_sender_clone = message_sender.clone();
+                let sample_rate = config.sample_rate.0;
+                let channels = config.channels.into();
                 let stream = device.build_output_stream(
                     &config,
                     move |data: &mut [f32], _: &OutputCallbackInfo| {
-                        while let Ok(event) = midi_events.try_recv() {
-                            match event {
-                                NoteEvent::On { freq, velocity } => {
-                                    synth.set_freq(freq);
-                                    synth.set_amplitude(velocity);
-                                }
-                                NoteEvent::Off => {
-                                    synth.set_amplitude(0f32);
-                                }
-                            }
-                        }
-                        synth.play(data);
+                        synth.play(sample_rate, channels, data);
                     },
                     move |error| {
                         message_sender_clone

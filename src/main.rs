@@ -7,15 +7,14 @@ use std::time::Instant;
 
 mod midi;
 use midi::MidiReader;
-mod message;
-use message::Message;
 mod audio;
-use audio::AudioManager;
+use audio::{AudioManager, Message};
 mod synth;
+use synth::Synth;
 
 type MessageReceiver = Option<channel::Receiver<Message>>;
 struct Wayfarer {
-    message_receiver: MessageReceiver,
+    audio_messages: MessageReceiver,
     start: Instant,
     now: Instant,
     midi_interface_name: String,
@@ -29,7 +28,7 @@ enum GuiMessage {
 }
 
 struct Flags {
-    messages: MessageReceiver,
+    audio_messages: MessageReceiver,
     midi_name: String,
     initial_status: String,
 }
@@ -37,7 +36,7 @@ struct Flags {
 impl Default for Flags {
     fn default() -> Self {
         Self {
-            messages: None,
+            audio_messages: None,
             midi_name: "-".to_string(),
             initial_status: String::new(),
         }
@@ -52,7 +51,7 @@ impl Application for Wayfarer {
     fn new(flags: Self::Flags) -> (Self, Command<GuiMessage>) {
         (
             Wayfarer {
-                message_receiver: flags.messages,
+                audio_messages: flags.audio_messages,
                 start: Instant::now(),
                 now: Instant::now(),
                 midi_interface_name: flags.midi_name,
@@ -76,7 +75,7 @@ impl Application for Wayfarer {
             GuiMessage::Tick => {
                 self.now = Instant::now();
                 // can't seem to figure out the subscription feature.. so we just pump the channel here
-                if let Some(ref receiver) = self.message_receiver {
+                if let Some(ref receiver) = self.audio_messages {
                     for msg in receiver.try_iter() {
                         match msg {
                             Message::AudioName(s) => {
@@ -125,7 +124,7 @@ impl Application for Wayfarer {
 }
 
 fn main() -> iced::Result {
-    let (messagetx, messagerx) = channel::bounded(256);
+    let (audio_messages_tx, audio_messages_rx) = channel::bounded(256);
     let (miditx, midirx) = channel::bounded(256);
     // keeping _midi around so that we keep receiving midi events
     let (_midi, midi_name, initial_status) = match MidiReader::new(miditx) {
@@ -135,10 +134,11 @@ fn main() -> iced::Result {
         },
         Err(e) => (None, "-".to_string(), format!("error initializaing midi: {}", e)),
     };
-    let _audio = AudioManager::new(midirx, messagetx);
+    let synth = Synth::new(midirx);
+    let _audio = AudioManager::new(audio_messages_tx, synth);
     Wayfarer::run(Settings {
         flags: Flags {
-            messages: Some(messagerx),
+            audio_messages: Some(audio_messages_rx),
             midi_name,
             initial_status,
         },
