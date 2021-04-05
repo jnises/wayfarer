@@ -1,9 +1,7 @@
-use std::convert::TryFrom;
-
+use crate::message::Message;
 use crossbeam::channel;
 use midir::{MidiInput, MidiInputConnection};
-
-use crate::message::Message;
+use std::convert::TryFrom;
 
 pub enum NoteEvent {
     On { freq: f32, velocity: f32 },

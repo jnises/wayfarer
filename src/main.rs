@@ -7,13 +7,10 @@ use std::time::Instant;
 
 mod midi;
 use midi::MidiReader;
-
 mod message;
 use message::Message;
-
 mod audio;
 use audio::AudioManager;
-
 mod synth;
 
 type MessageReceiver = Option<channel::Receiver<Message>>;
