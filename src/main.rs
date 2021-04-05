@@ -28,19 +28,32 @@ enum GuiMessage {
     Tick,
 }
 
+struct Flags {
+    messages: MessageReceiver,
+    midi_name: String,
+}
+
+impl Default for Flags {
+    fn default() -> Self {
+        Self {
+            messages: None,
+            midi_name: "-".to_string(),
+        }
+    }
+}
+
 impl Application for Wayfarer {
     type Executor = executor::Default;
     type Message = GuiMessage;
-    // TODO use better type for this
-    type Flags = Option<channel::Receiver<Message>>;
+    type Flags = Flags;
 
-    fn new(receiver: Self::Flags) -> (Self, Command<GuiMessage>) {
+    fn new(flags: Self::Flags) -> (Self, Command<GuiMessage>) {
         (
             Wayfarer {
-                message_receiver: receiver,
+                message_receiver: flags.messages,
                 start: Instant::now(),
                 now: Instant::now(),
-                midi_interface_name: "-".to_string(),
+                midi_interface_name: flags.midi_name,
                 audio_interface_name: "-".to_string(),
                 status_text: String::new(),
             },
@@ -64,9 +77,6 @@ impl Application for Wayfarer {
                 if let Some(ref receiver) = self.message_receiver {
                     for msg in receiver.try_iter() {
                         match msg {
-                            Message::MidiName(s) => {
-                                self.midi_interface_name = s;
-                            }
                             Message::AudioName(s) => {
                                 self.audio_interface_name = s;
                             }
@@ -115,10 +125,13 @@ impl Application for Wayfarer {
 fn main() -> iced::Result {
     let (messagetx, messagerx) = channel::bounded(256);
     let (miditx, midirx) = channel::bounded(256);
-    let _midi = MidiReader::new(miditx, messagetx.clone());
+    let midi = MidiReader::new(miditx);
     let _audio = AudioManager::new(midirx, messagetx);
     Wayfarer::run(Settings {
-        flags: Some(messagerx),
+        flags: Flags {
+            messages: Some(messagerx),
+            midi_name: midi.get_name().to_string(),
+        },
         antialiasing: true,
         window: window::Settings {
             size: (400, 200),

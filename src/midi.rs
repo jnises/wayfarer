@@ -1,4 +1,3 @@
-use crate::message::Message;
 use crossbeam::channel;
 use midir::{MidiInput, MidiInputConnection};
 use std::convert::TryFrom;
@@ -12,21 +11,18 @@ pub struct MidiReader {
     // we receive midi input as long as this is alive
     #[allow(dead_code)]
     connection: Option<MidiInputConnection<()>>,
+    name: String,
 }
 
 impl MidiReader {
     // TODO do proper error handling
     pub fn new(
-        callback: channel::Sender<NoteEvent>,
-        message_sender: channel::Sender<Message>,
+        callback: channel::Sender<NoteEvent>
     ) -> Self {
         let midi = MidiInput::new("wayfarer").unwrap();
         let ports = midi.ports();
         if let Some(port) = ports.first() {
             let name = midi.port_name(port).unwrap();
-            message_sender
-                .send(Message::MidiName(name.clone()))
-                .unwrap();
             let connection = midi
                 .connect(
                     port,
@@ -56,9 +52,14 @@ impl MidiReader {
                 .unwrap();
             MidiReader {
                 connection: Some(connection),
+                name,
             }
         } else {
-            MidiReader { connection: None }
+            MidiReader { connection: None, name: "-".to_string() }
         }
+    }
+
+    pub fn get_name(&self) -> &str {
+        &self.name
     }
 }
