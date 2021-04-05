@@ -1,131 +1,20 @@
-use cpal::{
-    traits::{DeviceTrait, HostTrait, StreamTrait},
-    OutputCallbackInfo, SampleFormat, SampleRate,
-};
 use crossbeam::channel;
 use iced::{
     executor, time, window, Application, Clipboard, Color, Column, Command, Container, Element,
     Length, Row, Settings, Space, Subscription, Text,
 };
-use std::{
-    thread::{self, JoinHandle},
-    time::Instant,
-};
+use std::time::Instant;
 
 mod midi;
-use midi::{MidiReader, NoteEvent};
+use midi::MidiReader;
 
 mod message;
 use message::Message;
 
-struct Synth {
-    sample_rate: u32,
-    channels: usize,
-    clock: u64,
-    freq: f32,
-    amplitude: f32,
-}
+mod audio;
+use audio::AudioManager;
 
-impl Synth {
-    fn new(sample_rate: u32, channels: usize) -> Self {
-        Self {
-            sample_rate,
-            channels,
-            clock: 0,
-            freq: 0f32,
-            amplitude: 0f32,
-        }
-    }
-
-    fn play(&mut self, output: &mut [f32]) {
-        for frame in output.chunks_mut(self.channels) {
-            let value = self.amplitude
-                * (self.clock as f32 / self.sample_rate as f32
-                    * self.freq
-                    * 2f32
-                    * std::f32::consts::PI)
-                    .sin();
-            self.clock += 1;
-            for sample in frame.iter_mut() {
-                *sample = value;
-            }
-        }
-    }
-}
-
-struct AudioManager {
-    handle: Option<JoinHandle<()>>,
-    shutdown: channel::Sender<()>,
-}
-
-impl AudioManager {
-    fn new(
-        midi_events: channel::Receiver<NoteEvent>,
-        message_sender: channel::Sender<Message>,
-    ) -> Self {
-        let (tx, rx) = channel::bounded(1);
-        // run this in a thread since it causes errors if run before the gui on a thread
-        let handle = thread::spawn(move || {
-            let host = cpal::default_host();
-            let device = host
-                .default_output_device()
-                .expect("no default output device found");
-            let supported_config = device
-                .supported_output_configs()
-                .unwrap()
-                .filter(|config| {
-                    config.sample_format() == SampleFormat::F32 && config.channels() == 2
-                })
-                .next()
-                .unwrap();
-            let min_rate = supported_config.min_sample_rate();
-            let max_rate = supported_config.max_sample_rate();
-            let config = supported_config
-                .with_sample_rate(SampleRate(48000).clamp(min_rate, max_rate))
-                .config();
-            let mut synth = Synth::new(config.sample_rate.0, 2);
-            let message_sender_clone = message_sender.clone();
-            let stream = device
-                .build_output_stream(
-                    &config,
-                    move |data: &mut [f32], _: &OutputCallbackInfo| {
-                        while let Ok(event) = midi_events.try_recv() {
-                            match event {
-                                NoteEvent::On { freq, velocity } => {
-                                    synth.freq = freq;
-                                    synth.amplitude = velocity;
-                                }
-                                NoteEvent::Off => {
-                                    synth.amplitude = 0f32;
-                                }
-                            }
-                        }
-                        synth.play(data);
-                    },
-                    move|error| {
-                        message_sender_clone.send(Message::Status(format!("error: {:?}", error))).unwrap();
-                    },
-                )
-                .unwrap();
-            message_sender
-                .send(Message::AudioName(device.name().unwrap()))
-                .unwrap();
-            stream.play().unwrap();
-            rx.recv().unwrap();
-        });
-        Self {
-            handle: Some(handle),
-            shutdown: tx,
-        }
-    }
-}
-
-impl Drop for AudioManager {
-    fn drop(&mut self) {
-        self.shutdown.send(()).unwrap();
-        self.handle.take().unwrap().join().unwrap();
-    }
-}
+mod synth;
 
 type MessageReceiver = Option<channel::Receiver<Message>>;
 struct Wayfarer {

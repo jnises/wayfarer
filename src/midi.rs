@@ -17,7 +17,10 @@ pub struct MidiReader {
 }
 
 impl MidiReader {
-    pub fn new(callback: channel::Sender<NoteEvent>, message_sender: channel::Sender<Message>) -> Self {
+    pub fn new(
+        callback: channel::Sender<NoteEvent>,
+        message_sender: channel::Sender<Message>,
+    ) -> Self {
         let midi = MidiInput::new("wayfarer").unwrap();
         let ports = midi.ports();
         if let Some(port) = ports.first() {
