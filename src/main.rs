@@ -127,6 +127,7 @@ impl Application for Wayfarer {
 fn main() -> iced::Result {
     let (messagetx, messagerx) = channel::bounded(256);
     let (miditx, midirx) = channel::bounded(256);
+    // keeping _midi around so that we keep receiving midi events
     let (_midi, midi_name, initial_status) = match MidiReader::new(miditx) {
         Ok(midi) => {
             let name = midi.get_name().to_string();
