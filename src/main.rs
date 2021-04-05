@@ -31,6 +31,7 @@ enum GuiMessage {
 struct Flags {
     messages: MessageReceiver,
     midi_name: String,
+    initial_status: String,
 }
 
 impl Default for Flags {
@@ -38,6 +39,7 @@ impl Default for Flags {
         Self {
             messages: None,
             midi_name: "-".to_string(),
+            initial_status: String::new(),
         }
     }
 }
@@ -55,7 +57,7 @@ impl Application for Wayfarer {
                 now: Instant::now(),
                 midi_interface_name: flags.midi_name,
                 audio_interface_name: "-".to_string(),
-                status_text: String::new(),
+                status_text: flags.initial_status,
             },
             Command::none(),
         )
@@ -125,12 +127,19 @@ impl Application for Wayfarer {
 fn main() -> iced::Result {
     let (messagetx, messagerx) = channel::bounded(256);
     let (miditx, midirx) = channel::bounded(256);
-    let midi = MidiReader::new(miditx);
+    let (_midi, midi_name, initial_status) = match MidiReader::new(miditx) {
+        Ok(midi) => {
+            let name = midi.get_name().to_string();
+            (Some(midi), name, String::new())
+        },
+        Err(e) => (None, "-".to_string(), format!("error initializaing midi: {}", e)),
+    };
     let _audio = AudioManager::new(midirx, messagetx);
     Wayfarer::run(Settings {
         flags: Flags {
             messages: Some(messagerx),
-            midi_name: midi.get_name().to_string(),
+            midi_name,
+            initial_status,
         },
         antialiasing: true,
         window: window::Settings {
