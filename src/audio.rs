@@ -65,12 +65,11 @@ impl AudioManager {
                 message_sender
                     .send(Message::AudioName(device.name().unwrap()))
                     .unwrap();
-                // can't return stream since it isn't Send
                 stream.play()?;
-                // return the stream to keep it alive
                 Ok(stream)
             })() {
                 Ok(_stream) => {
+                    // can't keep stream alive by returning it since it isn't Send. so we have to keep this thread alive
                     shutdown_rx.recv().unwrap();
                 }
                 Err(e) => {
