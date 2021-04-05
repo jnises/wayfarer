@@ -59,3 +59,18 @@ impl SynthPlayer for Synth {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crossbeam::channel;
+    use super::{Synth, SynthPlayer};
+
+    #[test]
+    fn silence() {
+        let (_tx, rx) = channel::bounded(1);
+        let mut synth = Synth::new(rx);
+        let mut data = [0f32; 512];
+        synth.play(48000, 2, &mut data);
+        assert_eq!([0f32; 512], data);
+    }
+}
