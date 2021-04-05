@@ -41,6 +41,7 @@ impl AudioManager {
                 let default_sample_rate = device.default_output_config()?.sample_rate();
                 let config = supported_config
                     .with_sample_rate(default_sample_rate)
+                    // TODO make buffer size configurable
                     .config();
                 let mut synth = Synth::new(config.sample_rate.0, 2);
                 let message_sender_clone = message_sender.clone();
