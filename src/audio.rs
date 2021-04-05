@@ -1,15 +1,12 @@
+use crate::message::Message;
+use crate::midi::NoteEvent;
+use crate::synth::Synth;
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     OutputCallbackInfo, SampleFormat, SampleRate,
 };
-
-use std::thread::{self, JoinHandle};
-
 use crossbeam::channel;
-
-use crate::message::Message;
-use crate::midi::NoteEvent;
-use crate::synth::Synth;
+use std::thread::{self, JoinHandle};
 
 pub struct AudioManager {
     handle: Option<JoinHandle<()>>,
@@ -19,6 +16,7 @@ pub struct AudioManager {
 impl AudioManager {
     pub fn new(
         midi_events: channel::Receiver<NoteEvent>,
+        // TODO callback trait instead of channel
         message_sender: channel::Sender<Message>,
     ) -> Self {
         let (tx, rx) = channel::bounded(1);

@@ -1,3 +1,6 @@
+// super simple synth
+// TODO make interesting
+
 pub struct Synth {
     sample_rate: u32,
     channels: usize,

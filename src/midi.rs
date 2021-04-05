@@ -17,6 +17,7 @@ pub struct MidiReader {
 }
 
 impl MidiReader {
+    // TODO do proper error handling
     pub fn new(
         callback: channel::Sender<NoteEvent>,
         message_sender: channel::Sender<Message>,

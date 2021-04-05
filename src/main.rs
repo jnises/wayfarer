@@ -34,6 +34,7 @@ enum GuiMessage {
 impl Application for Wayfarer {
     type Executor = executor::Default;
     type Message = GuiMessage;
+    // TODO use better type for this
     type Flags = Option<channel::Receiver<Message>>;
 
     fn new(receiver: Self::Flags) -> (Self, Command<GuiMessage>) {
@@ -84,6 +85,7 @@ impl Application for Wayfarer {
     }
 
     fn subscription(&self) -> Subscription<GuiMessage> {
+        // TODO subscribe on channel
         time::every(std::time::Duration::from_millis(100)).map(|_| GuiMessage::Tick)
     }
 
