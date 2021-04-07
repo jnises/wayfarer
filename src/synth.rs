@@ -30,6 +30,7 @@ pub trait SynthPlayer {
 
 impl SynthPlayer for Synth {
     fn play(&mut self, sample_rate: u32, channels: usize, output: &mut [f32]) {
+        // pump midi messages
         for message in self.midi_events.try_iter() {
             match message {
                 wmidi::MidiMessage::NoteOn(_, note, velocity) => {
@@ -44,7 +45,9 @@ impl SynthPlayer for Synth {
                 _ => {}
             }
         }
-        for frame in output.chunks_mut(channels) {
+
+        // produce sound
+        for frame in output.chunks_exact_mut(channels) {
             // TODO mod clock before casting
             let value = self.velocity
                 * (self.clock as f32 / sample_rate as f32
