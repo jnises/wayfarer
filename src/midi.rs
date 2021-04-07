@@ -29,7 +29,7 @@ impl MidiReader {
                             // will allocate if we are sent SysEx messages
                             .to_owned();
                         // TODO don't panic when the buffer is full, just drop
-                        midi_events.send(message).unwrap();
+                        midi_events.try_send(message).unwrap();
                     },
                     (),
                 )
