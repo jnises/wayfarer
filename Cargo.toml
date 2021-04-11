@@ -7,9 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-iced = { version = "0.3", features = ["canvas", "tokio"] }
-iced_futures = { version = "0.3" }
-palette = "0.5"
+eframe = "0.11"
 chrono = "0.4"
 cpal = "0.13"
 midir = "0.7"
