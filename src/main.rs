@@ -105,12 +105,7 @@ impl App for Wayfarer {
             y: 300f32,
         })
     }
-
-    fn is_resizable(&self) -> bool {
-        //false
-        true
-    }
-
+    
     fn update(&mut self, ctx: &egui::CtxRef, _frame: &mut epi::Frame<'_>) {
         if let Some(ref receiver) = self.audio_messages {
             for msg in receiver.try_iter() {
