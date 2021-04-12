@@ -84,6 +84,9 @@ impl App for Wayfarer {
                 ui.label(&self.audio_interface_name);
             });
             ui.label(&self.status_text);
+            // put onscreen keyboard at bottom of window
+            let height = ui.available_size().y;
+            ui.add_space(height - 20f32);
             self.keyboard.show(ui, &mut self.midi_tx);
         });
     }

@@ -23,6 +23,7 @@ impl OnScreenKeyboard {
 
     pub fn show(&mut self, ui: &mut egui::Ui, midi_tx: &mut channel::Sender<MidiMessage<'static>>) {
         ui.horizontal(|ui| {
+            // start from middle c                        
             for note_num in 60.. {
                 if ui.available_width() <= 0f32 {
                     break;
