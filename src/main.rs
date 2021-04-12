@@ -1,9 +1,11 @@
+#![warn(clippy::all, rust_2018_idioms)]
+use std::{collections::HashSet, convert::TryFrom};
+
 use crossbeam::channel;
-use iced::{
-    executor, time, window, Application, Clipboard, Color, Column, Command, Container, Element,
-    Length, Row, Settings, Space, Subscription, Text,
+use eframe::{
+    egui::{self, Ui, Vec2},
+    epi::{self, App},
 };
-use std::time::Instant;
 
 mod midi;
 use midi::MidiReader;
@@ -11,143 +13,155 @@ mod audio;
 use audio::{AudioManager, Message};
 mod synth;
 use synth::Synth;
+use wmidi::MidiMessage;
 
-type MessageReceiver = Option<channel::Receiver<Message>>;
+const NAME: &'static str = "Wayfärer";
+
+type MidiSender = channel::Sender<MidiMessage<'static>>;
+
+fn is_key_black(note: wmidi::Note) -> bool {
+    [
+        false, true, false, true, false, false, true, false, true, false, true, false,
+    ][(u8::from(note) % 12) as usize]
+}
+
+type MessageReceiver = channel::Receiver<Message>;
 struct Wayfarer {
-    audio_messages: MessageReceiver,
-    start: Instant,
-    now: Instant,
+    audio_messages: Option<MessageReceiver>,
     midi_interface_name: String,
     audio_interface_name: String,
     status_text: String,
+    midi_tx: MidiSender,
+    keyboard_pressed: HashSet<egui::Id>,
 }
 
-#[derive(Debug, Clone, Copy)]
-enum GuiMessage {
-    Tick,
-}
-
-struct Flags {
+struct WayfarerArgs {
     audio_messages: MessageReceiver,
     midi_name: String,
     initial_status: String,
+    midi_tx: MidiSender,
 }
 
-impl Default for Flags {
-    fn default() -> Self {
-        Self {
-            audio_messages: None,
-            midi_name: "-".to_string(),
-            initial_status: String::new(),
+impl Wayfarer {
+    fn new(args: WayfarerArgs) -> Self {
+        Wayfarer {
+            audio_messages: Some(args.audio_messages),
+            midi_interface_name: args.midi_name,
+            audio_interface_name: "-".to_string(),
+            status_text: args.initial_status,
+            midi_tx: args.midi_tx,
+            keyboard_pressed: HashSet::new(),
         }
     }
+
+    // need to keep state in self since egui doesn't seem to have support for custom state currently
+    fn on_screen_keyboard(&mut self, ui: &mut Ui) {
+        ui.horizontal(|ui| {
+            for note_num in 60.. {
+                if ui.available_width() <= 0f32 {
+                    break;
+                }
+                let note = match wmidi::Note::try_from(note_num) {
+                    Ok(note) => note,
+                    Err(_) => break,
+                };
+                let b = egui::Button::new(" ").fill(Some(if is_key_black(note) {
+                    egui::Color32::BLACK
+                } else {
+                    egui::Color32::WHITE
+                }));
+                let r = ui.add(b);
+                // egui doesn't seem to have any convenient "pressed" or "released" event
+                if r.is_pointer_button_down_on() {
+                    if !self.keyboard_pressed.insert(r.id) {
+                        let _ = self.midi_tx.try_send(MidiMessage::NoteOn(
+                            wmidi::Channel::Ch1,
+                            note,
+                            wmidi::Velocity::from_u8_lossy(127),
+                        ));
+                    }
+                } else {
+                    if self.keyboard_pressed.remove(&r.id) {
+                        let _ = self.midi_tx.try_send(MidiMessage::NoteOff(
+                            wmidi::Channel::Ch1,
+                            note,
+                            wmidi::Velocity::from_u8_lossy(0),
+                        ));
+                    }
+                }
+            }
+        });
+    }
 }
 
-impl Application for Wayfarer {
-    type Executor = executor::Default;
-    type Message = GuiMessage;
-    type Flags = Flags;
-
-    fn new(flags: Self::Flags) -> (Self, Command<GuiMessage>) {
-        (
-            Wayfarer {
-                audio_messages: flags.audio_messages,
-                start: Instant::now(),
-                now: Instant::now(),
-                midi_interface_name: flags.midi_name,
-                audio_interface_name: "-".to_string(),
-                status_text: flags.initial_status,
-            },
-            Command::none(),
-        )
+impl App for Wayfarer {
+    fn name(&self) -> &str {
+        NAME
     }
 
-    fn title(&self) -> String {
-        String::from("Wayfärer")
+    fn initial_window_size(&self) -> Option<Vec2> {
+        Some(Vec2 {
+            x: 400f32,
+            y: 300f32,
+        })
     }
 
-    fn update(
-        &mut self,
-        gui_message: GuiMessage,
-        _clipboard: &mut Clipboard,
-    ) -> Command<GuiMessage> {
-        match gui_message {
-            GuiMessage::Tick => {
-                self.now = Instant::now();
-                // can't seem to figure out the subscription feature.. so we just pump the channel here
-                if let Some(ref receiver) = self.audio_messages {
-                    for msg in receiver.try_iter() {
-                        match msg {
-                            Message::AudioName(s) => {
-                                self.audio_interface_name = s;
-                            }
-                            Message::Status(s) => {
-                                self.status_text = s;
-                            }
-                        }
+    fn is_resizable(&self) -> bool {
+        //false
+        true
+    }
+
+    fn update(&mut self, ctx: &egui::CtxRef, _frame: &mut epi::Frame<'_>) {
+        if let Some(ref receiver) = self.audio_messages {
+            for msg in receiver.try_iter() {
+                match msg {
+                    Message::AudioName(s) => {
+                        self.audio_interface_name = s;
+                    }
+                    Message::Status(s) => {
+                        self.status_text = s;
                     }
                 }
             }
         }
-        Command::none()
-    }
-
-    fn subscription(&self) -> Subscription<GuiMessage> {
-        // TODO subscribe on channel
-        time::every(std::time::Duration::from_millis(100)).map(|_| GuiMessage::Tick)
-    }
-
-    fn view(&mut self) -> Element<GuiMessage> {
-        let t = self.now - self.start;
-        let color = palette::Srgb::from(palette::Lch::new(50.0, 50.0, 10.0 * t.as_secs_f32()));
-        let color = Color::from_rgb(color.red, color.green, color.blue);
-        Container::new(
-            Column::new()
-                .push(Text::new("Wayfärer").size(50).color(color))
-                .push(Space::with_height(Length::Units(10)))
-                .push(
-                    Row::new()
-                        .push(Text::new("midi: "))
-                        .push(Text::new(self.midi_interface_name.clone())),
-                )
-                .push(
-                    Row::new()
-                        .push(Text::new("audio: "))
-                        .push(Text::new(self.audio_interface_name.clone())),
-                )
-                .push(Space::with_height(Length::Units(10)))
-                .push(Text::new(self.status_text.clone())),
-        )
-        .padding(20)
-        .into()
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading(NAME);
+            ui.horizontal(|ui| {
+                ui.label("midi: ");
+                ui.label(&self.midi_interface_name);
+            });
+            ui.horizontal(|ui| {
+                ui.label("audio: ");
+                ui.label(&self.audio_interface_name);
+            });
+            ui.label(&self.status_text);
+            self.on_screen_keyboard(ui);
+        });
     }
 }
 
-fn main() -> iced::Result {
+fn main() {
     let (audio_messages_tx, audio_messages_rx) = channel::bounded(256);
     let (miditx, midirx) = channel::bounded(256);
     // keeping _midi around so that we keep receiving midi events
-    let (_midi, midi_name, initial_status) = match MidiReader::new(miditx) {
+    let (_midi, midi_name, initial_status) = match MidiReader::new(miditx.clone()) {
         Ok(midi) => {
             let name = midi.get_name().to_string();
             (Some(midi), name, String::new())
-        },
-        Err(e) => (None, "-".to_string(), format!("error initializaing midi: {}", e)),
+        }
+        Err(e) => (
+            None,
+            "-".to_string(),
+            format!("error initializaing midi: {}", e),
+        ),
     };
     let synth = Synth::new(midirx);
     let _audio = AudioManager::new(audio_messages_tx, synth);
-    Wayfarer::run(Settings {
-        flags: Flags {
-            audio_messages: Some(audio_messages_rx),
-            midi_name,
-            initial_status,
-        },
-        antialiasing: true,
-        window: window::Settings {
-            size: (400, 200),
-            resizable: false,
-            ..window::Settings::default()
-        },
-        ..Settings::default()
-    })
+    let app = Box::new(Wayfarer::new(WayfarerArgs {
+        audio_messages: audio_messages_rx,
+        midi_name,
+        initial_status,
+        midi_tx: miditx,
+    }));
+    eframe::run_native(app);
 }
