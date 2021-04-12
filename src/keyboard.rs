@@ -11,13 +11,13 @@ fn is_key_black(note: wmidi::Note) -> bool {
 }
 
 pub struct OnScreenKeyboard {
-    keyboard_pressed: HashSet<egui::Id>,
+    key_pressed: HashSet<egui::Id>,
 }
 
 impl OnScreenKeyboard {
     pub fn new() -> Self {
         Self {
-            keyboard_pressed: HashSet::new(),
+            key_pressed: HashSet::new(),
         }
     }
 
@@ -40,7 +40,7 @@ impl OnScreenKeyboard {
                 let r = ui.add(b);
                 // egui doesn't seem to have any convenient "pressed" or "released" event
                 if r.is_pointer_button_down_on() {
-                    if !self.keyboard_pressed.insert(r.id) {
+                    if !self.key_pressed.insert(r.id) {
                         let _ = midi_tx.try_send(MidiMessage::NoteOn(
                             wmidi::Channel::Ch1,
                             note,
@@ -48,7 +48,7 @@ impl OnScreenKeyboard {
                         ));
                     }
                 } else {
-                    if self.keyboard_pressed.remove(&r.id) {
+                    if self.key_pressed.remove(&r.id) {
                         let _ = midi_tx.try_send(MidiMessage::NoteOff(
                             wmidi::Channel::Ch1,
                             note,
