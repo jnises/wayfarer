@@ -35,14 +35,14 @@ struct WayfarerArgs {
     midi_tx: MidiSender,
 }
 
-impl Wayfarer {
-    fn new(args: WayfarerArgs) -> Self {
+impl WayfarerArgs {
+    fn init(self) -> Wayfarer {
         Wayfarer {
-            audio_messages: Some(args.audio_messages),
-            midi_interface_name: args.midi_name,
+            audio_messages: Some(self.audio_messages),
+            midi_interface_name: self.midi_name,
             audio_interface_name: "-".to_string(),
-            status_text: args.initial_status,
-            midi_tx: args.midi_tx,
+            status_text: self.initial_status,
+            midi_tx: self.midi_tx,
             keyboard: OnScreenKeyboard::new(),
         }
     }
@@ -109,11 +109,11 @@ fn main() {
     };
     let synth = Synth::new(midirx);
     let _audio = AudioManager::new(audio_messages_tx, synth);
-    let app = Box::new(Wayfarer::new(WayfarerArgs {
+    let app = Box::new(WayfarerArgs {
         audio_messages: audio_messages_rx,
         midi_name,
         initial_status,
         midi_tx: miditx,
-    }));
+    }.init());
     eframe::run_native(app);
 }
