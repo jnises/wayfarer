@@ -101,30 +101,32 @@ impl App for Wayfarer {
 
                 let buffer_range = self.audio.get_buffer_size_range();
                 ui.group(|ui| {
-                    ui.label("buffer size");
+                    ui.label("buffer size:");
                     ui.group(|ui| {
                         if buffer_range.is_none() {
                             ui.set_enabled(false);
                             self.forced_buffer_size = None;
                         }
                         let mut forced = self.forced_buffer_size.is_some();
-                        ui.checkbox(&mut forced, "force");
-                        ui.set_enabled(forced);
-                        let mut size = match self.forced_buffer_size {
-                            Some(size) => size,
-                            None => self.audio.get_buffer_size().unwrap_or(0),
-                        };
-                        let range = match buffer_range {
-                            Some((min, max)) => min..=max,
-                            None => 0..=1,
-                        };
-                        ui.add(egui::Slider::new(&mut size, range));
-                        if forced {
-                            self.forced_buffer_size = Some(size);
-                        } else {
-                            self.forced_buffer_size = None;
-                        }
-                        self.audio.set_forced_buffer_size(self.forced_buffer_size);
+                        ui.horizontal(|ui| {
+                            ui.checkbox(&mut forced, "force");
+                            ui.set_enabled(forced);
+                            let mut size = match self.forced_buffer_size {
+                                Some(size) => size,
+                                None => self.audio.get_buffer_size().unwrap_or(0),
+                            };
+                            let range = match buffer_range {
+                                Some((min, max)) => min..=max,
+                                None => 0..=1,
+                            };
+                            ui.add(egui::Slider::new(&mut size, range));
+                            if forced {
+                                self.forced_buffer_size = Some(size);
+                            } else {
+                                self.forced_buffer_size = None;
+                            }
+                            self.audio.set_forced_buffer_size(self.forced_buffer_size);
+                        });
                     });
                 });
 
