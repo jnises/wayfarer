@@ -23,7 +23,7 @@ struct Wayfarer {
     midi: Option<MidiReader>,
     status_text: Arc<Mutex<String>>,
     keyboard: OnScreenKeyboard,
-    forced_buffer_size: String,
+    forced_buffer_size: Option<u32>,
 }
 
 impl Wayfarer {
@@ -44,7 +44,7 @@ impl Wayfarer {
             midi,
             status_text,
             keyboard: OnScreenKeyboard::new(midi_tx),
-            forced_buffer_size: String::new(),
+            forced_buffer_size: None,
         }
     }
 }
@@ -64,7 +64,7 @@ impl App for Wayfarer {
     fn update(&mut self, ctx: &egui::CtxRef, _frame: &mut epi::Frame<'_>) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading(NAME);
-            egui::Grid::new("settings grid").show(ui, |ui| {
+            ui.group(|ui| {
                 ui.label("midi:");
                 ui.label(
                     self.midi
@@ -72,8 +72,9 @@ impl App for Wayfarer {
                         .map(|midi| midi.get_name())
                         .unwrap_or("-"),
                 );
-                ui.end_row();
+            });
 
+            ui.group(|ui| {
                 ui.label("audio:");
                 let mut selected = self.audio.get_name().unwrap_or("-".to_string());
                 egui::ComboBox::from_id_source("audio combo box")
@@ -97,46 +98,37 @@ impl App for Wayfarer {
                         self.audio.set_device(device);
                     }
                 }
-                ui.end_row();
 
                 let buffer_range = self.audio.get_buffer_size_range();
-                ui.label("min buffer size:");
-                ui.label(
-                    buffer_range
-                        .map(|t| t.0.to_string())
-                        .unwrap_or_else(|| "-".to_string()),
-                );
-                ui.end_row();
-
-                ui.label("max buffer size:");
-                ui.label(
-                    buffer_range
-                        .map(|t| t.1.to_string())
-                        .unwrap_or_else(|| "-".to_string()),
-                );
-                ui.end_row();
-
-                ui.label("force buffer size:");
-                if ui
-                    .text_edit_singleline(&mut self.forced_buffer_size)
-                    .lost_focus()
-                {
-                    self.audio
-                        .set_forced_buffer_size(self.forced_buffer_size.parse().ok());
-                }
-                ui.end_row();
-
-                ui.label("actual buffer size:");
-                ui.label(
-                    self.audio
-                        .get_buffer_size()
-                        .map(|b| b.to_string())
-                        .unwrap_or("-".to_string()),
-                );
-                ui.end_row();
+                ui.group(|ui| {
+                    ui.label("buffer size");
+                    ui.group(|ui| {
+                        if buffer_range.is_none() {
+                            ui.set_enabled(false);
+                            self.forced_buffer_size = None;
+                        }
+                        let mut forced = self.forced_buffer_size.is_some();
+                        ui.checkbox(&mut forced, "force");
+                        ui.set_enabled(forced);
+                        let mut size = match self.forced_buffer_size {
+                            Some(size) => size,
+                            None => self.audio.get_buffer_size().unwrap_or(0),
+                        };
+                        let range = match buffer_range {
+                            Some((min, max)) => min..=max,
+                            None => 0..=1,
+                        };
+                        ui.add(egui::Slider::new(&mut size, range));
+                        if forced {
+                            self.forced_buffer_size = Some(size);
+                        } else {
+                            self.forced_buffer_size = None;
+                        }
+                        self.audio.set_forced_buffer_size(self.forced_buffer_size);
+                    });
+                });
 
                 ui.label(&*self.status_text.lock().unwrap());
-                ui.end_row();
             });
             // put onscreen keyboard at bottom of window
             let height = ui.available_size().y;
