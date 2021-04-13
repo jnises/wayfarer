@@ -65,42 +65,45 @@ impl App for Wayfarer {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading(NAME);
             ui.group(|ui| {
-                ui.label("midi:");
-                ui.label(
-                    self.midi
-                        .as_ref()
-                        .map(|midi| midi.get_name())
-                        .unwrap_or("-"),
-                );
+                ui.horizontal(|ui| {
+                    ui.label("midi:");
+                    ui.label(
+                        self.midi
+                            .as_ref()
+                            .map(|midi| midi.get_name())
+                            .unwrap_or("-"),
+                    );
+                });
             });
 
             ui.group(|ui| {
-                ui.label("audio:");
-                let mut selected = self.audio.get_name().unwrap_or("-".to_string());
-                egui::ComboBox::from_id_source("audio combo box")
-                    .selected_text(&selected)
-                    .show_ui(ui, |ui| {
-                        // TODO cache this to not poll too often
-                        for device in self.audio.get_devices() {
-                            if let Ok(name) = device.name() {
-                                ui.selectable_value(&mut selected, name.clone(), name);
+                ui.horizontal(|ui| {
+                    ui.label("audio:");
+                    let mut selected = self.audio.get_name().unwrap_or("-".to_string());
+                    egui::ComboBox::from_id_source("audio combo box")
+                        .selected_text(&selected)
+                        .show_ui(ui, |ui| {
+                            // TODO cache this to not poll too often
+                            for device in self.audio.get_devices() {
+                                if let Ok(name) = device.name() {
+                                    ui.selectable_value(&mut selected, name.clone(), name);
+                                }
                             }
+                        });
+                    if Some(&selected) != self.audio.get_name().as_ref() {
+                        if let Some(device) = self.audio.get_devices().into_iter().find(|d| {
+                            if let Ok(name) = d.name() {
+                                name == selected
+                            } else {
+                                false
+                            }
+                        }) {
+                            self.audio.set_device(device);
                         }
-                    });
-                if Some(&selected) != self.audio.get_name().as_ref() {
-                    if let Some(device) = self.audio.get_devices().into_iter().find(|d| {
-                        if let Ok(name) = d.name() {
-                            name == selected
-                        } else {
-                            false
-                        }
-                    }) {
-                        self.audio.set_device(device);
                     }
-                }
-
+                });
                 let buffer_range = self.audio.get_buffer_size_range();
-                ui.group(|ui| {
+                ui.horizontal(|ui| {
                     ui.label("buffer size:");
                     ui.group(|ui| {
                         if buffer_range.is_none() {
