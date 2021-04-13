@@ -6,6 +6,7 @@ use wmidi::MidiMessage;
 
 type MidiChannel = channel::Receiver<MidiMessage<'static>>;
 
+#[derive(Clone)]
 pub struct Synth {
     clock: u64,
     midi_events: MidiChannel,
@@ -65,8 +66,8 @@ impl SynthPlayer for Synth {
 
 #[cfg(test)]
 mod test {
-    use crossbeam::channel;
     use super::{Synth, SynthPlayer};
+    use crossbeam::channel;
 
     #[test]
     fn silence() {

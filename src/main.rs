@@ -1,4 +1,6 @@
 #![warn(clippy::all, rust_2018_idioms)]
+use std::sync::{Arc, Mutex};
+
 use crossbeam::channel;
 use eframe::{
     egui::{self, Vec2},
@@ -9,41 +11,37 @@ use keyboard::OnScreenKeyboard;
 mod midi;
 use midi::MidiReader;
 mod audio;
-use audio::{AudioManager, Message};
+use audio::AudioManager;
 mod synth;
 use synth::Synth;
-use wmidi::MidiMessage;
 
 const NAME: &'static str = "Wayfärer";
 
-type MidiSender = channel::Sender<MidiMessage<'static>>;
-
-type MessageReceiver = channel::Receiver<Message>;
 struct Wayfarer {
-    audio_messages: Option<MessageReceiver>,
-    midi_interface_name: String,
-    audio_interface_name: String,
-    status_text: String,
-    midi_tx: MidiSender,
+    audio: AudioManager<Synth>,
+    midi: Option<MidiReader>,
+    status_text: Arc<Mutex<String>>,
     keyboard: OnScreenKeyboard,
 }
 
-struct WayfarerArgs {
-    audio_messages: MessageReceiver,
-    midi_name: String,
-    initial_status: String,
-    midi_tx: MidiSender,
-}
-
-impl WayfarerArgs {
-    fn init(self) -> Wayfarer {
-        Wayfarer {
-            audio_messages: Some(self.audio_messages),
-            midi_interface_name: self.midi_name,
-            audio_interface_name: "-".to_string(),
-            status_text: self.initial_status,
-            midi_tx: self.midi_tx,
-            keyboard: OnScreenKeyboard::new(),
+impl Wayfarer {
+    fn new() -> Self {
+        let (midi_tx, midi_rx) = channel::bounded(256);
+        let (midi, initial_status) = match MidiReader::new(midi_tx.clone()) {
+            Ok(midi) => (Some(midi), String::new()),
+            Err(e) => (None, format!("error initializaing midi: {}", e)),
+        };
+        let synth = Synth::new(midi_rx);
+        let status_text = Arc::new(Mutex::new(initial_status));
+        let status_clone = status_text.clone();
+        let audio = AudioManager::new(synth, move |e| {
+            *status_clone.lock().unwrap() = e;
+        });
+        Self {
+            audio,
+            midi,
+            status_text,
+            keyboard: OnScreenKeyboard::new(midi_tx),
         }
     }
 }
@@ -61,59 +59,31 @@ impl App for Wayfarer {
     }
 
     fn update(&mut self, ctx: &egui::CtxRef, _frame: &mut epi::Frame<'_>) {
-        if let Some(ref receiver) = self.audio_messages {
-            for msg in receiver.try_iter() {
-                match msg {
-                    Message::AudioName(s) => {
-                        self.audio_interface_name = s;
-                    }
-                    Message::Status(s) => {
-                        self.status_text = s;
-                    }
-                }
-            }
-        }
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading(NAME);
             ui.horizontal(|ui| {
                 ui.label("midi: ");
-                ui.label(&self.midi_interface_name);
+                ui.label(
+                    self.midi
+                        .as_ref()
+                        .map(|midi| midi.get_name())
+                        .unwrap_or("-"),
+                );
             });
             ui.horizontal(|ui| {
                 ui.label("audio: ");
-                ui.label(&self.audio_interface_name);
+                ui.label(&self.audio.get_name().unwrap_or("_".to_string()));
             });
-            ui.label(&self.status_text);
+            ui.label(&*self.status_text.lock().unwrap());
             // put onscreen keyboard at bottom of window
             let height = ui.available_size().y;
             ui.add_space(height - 20f32);
-            self.keyboard.show(ui, &mut self.midi_tx);
+            self.keyboard.show(ui);
         });
     }
 }
 
 fn main() {
-    let (audio_messages_tx, audio_messages_rx) = channel::bounded(256);
-    let (miditx, midirx) = channel::bounded(256);
-    // keeping _midi around so that we keep receiving midi events
-    let (_midi, midi_name, initial_status) = match MidiReader::new(miditx.clone()) {
-        Ok(midi) => {
-            let name = midi.get_name().to_string();
-            (Some(midi), name, String::new())
-        }
-        Err(e) => (
-            None,
-            "-".to_string(),
-            format!("error initializaing midi: {}", e),
-        ),
-    };
-    let synth = Synth::new(midirx);
-    let _audio = AudioManager::new(audio_messages_tx, synth);
-    let app = Box::new(WayfarerArgs {
-        audio_messages: audio_messages_rx,
-        midi_name,
-        initial_status,
-        midi_tx: miditx,
-    }.init());
+    let app = Box::new(Wayfarer::new());
     eframe::run_native(app);
 }
