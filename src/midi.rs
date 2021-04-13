@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use crossbeam::channel;
+use log::error;
 use midir::{MidiInput, MidiInputConnection};
 use std::convert::TryFrom;
 use wmidi::MidiMessage;
@@ -22,14 +23,16 @@ impl MidiReader {
                     port,
                     &name,
                     move |_time_ms, message, _| {
-                        // will panic here on bad midi message.
-                        // TODO better error handling?
-                        let message = wmidi::MidiMessage::try_from(message)
-                            .expect("bad midi message")
-                            // will allocate if we are sent SysEx messages
-                            .to_owned();
-                        // TODO don't panic when the buffer is full, just drop
-                        midi_events.try_send(message).unwrap();
+                        match wmidi::MidiMessage::try_from(message) {
+                            Ok(message) => {
+                                if let Err(e) = midi_events.try_send(message.to_owned()) {
+                                    error!("error sending midi event {}", e);
+                                }
+                            }
+                            Err(e) => {
+                                error!("error parsingi midi event {}", e);
+                            }
+                        }
                     },
                     (),
                 )

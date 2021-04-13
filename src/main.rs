@@ -141,6 +141,7 @@ impl App for Wayfarer {
 }
 
 fn main() {
+    env_logger::init();
     let app = Box::new(Wayfarer::new());
     eframe::run_native(app);
 }
