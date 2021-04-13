@@ -1,5 +1,5 @@
 #![warn(clippy::all, rust_2018_idioms)]
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
 
 use cpal::traits::DeviceTrait;
 use crossbeam::channel;
@@ -14,6 +14,7 @@ use midi::MidiReader;
 mod audio;
 use audio::AudioManager;
 mod synth;
+use parking_lot::Mutex;
 use synth::Synth;
 
 const NAME: &'static str = "Wayfärer";
@@ -37,7 +38,7 @@ impl Wayfarer {
         let status_text = Arc::new(Mutex::new(initial_status));
         let status_clone = status_text.clone();
         let audio = AudioManager::new(synth, move |e| {
-            *status_clone.lock().unwrap() = e;
+            *status_clone.lock() = e;
         });
         Self {
             audio,
@@ -133,7 +134,7 @@ impl App for Wayfarer {
                     });
                 });
 
-                ui.label(&*self.status_text.lock().unwrap());
+                ui.label(&*self.status_text.lock());
             });
             // put onscreen keyboard at bottom of window
             let height = ui.available_size().y;

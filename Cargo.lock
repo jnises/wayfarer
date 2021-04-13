@@ -1896,6 +1896,7 @@ dependencies = [
  "env_logger",
  "log",
  "midir",
+ "parking_lot",
  "wmidi",
 ]
 
