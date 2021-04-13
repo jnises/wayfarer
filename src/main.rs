@@ -1,6 +1,7 @@
 #![warn(clippy::all, rust_2018_idioms)]
 use std::sync::{Arc, Mutex};
 
+use cpal::traits::DeviceTrait;
 use crossbeam::channel;
 use eframe::{
     egui::{self, Vec2},
@@ -61,20 +62,44 @@ impl App for Wayfarer {
     fn update(&mut self, ctx: &egui::CtxRef, _frame: &mut epi::Frame<'_>) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading(NAME);
-            ui.horizontal(|ui| {
-                ui.label("midi: ");
+            egui::Grid::new("settings grid").show(ui, |ui| {
+                ui.label("midi:");
                 ui.label(
                     self.midi
                         .as_ref()
                         .map(|midi| midi.get_name())
                         .unwrap_or("-"),
                 );
+                ui.end_row();
+
+                ui.label("audio:");
+                let mut selected = self.audio.get_name().unwrap_or("-".to_string());
+                egui::ComboBox::from_id_source("audio combo box")
+                    .selected_text(&selected)
+                    .show_ui(ui, |ui| {
+                        // TODO cache this to not poll too often
+                        for device in self.audio.get_devices() {
+                            if let Ok(name) = device.name() {
+                                ui.selectable_value(&mut selected, name.clone(), name);
+                            }
+                        }
+                    });
+                if Some(&selected) != self.audio.get_name().as_ref() {
+                    if let Some(device) = self.audio.get_devices().into_iter().find(|d| {
+                        if let Ok(name) = d.name() {
+                            name == selected
+                        } else {
+                            false
+                        }
+                    }) {
+                        self.audio.set_device(device);
+                    }
+                }
+                ui.end_row();
+
+                ui.label(&*self.status_text.lock().unwrap());
+                ui.end_row();
             });
-            ui.horizontal(|ui| {
-                ui.label("audio: ");
-                ui.label(&self.audio.get_name().unwrap_or("_".to_string()));
-            });
-            ui.label(&*self.status_text.lock().unwrap());
             // put onscreen keyboard at bottom of window
             let height = ui.available_size().y;
             ui.add_space(height - 20f32);
