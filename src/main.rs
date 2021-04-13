@@ -23,6 +23,7 @@ struct Wayfarer {
     midi: Option<MidiReader>,
     status_text: Arc<Mutex<String>>,
     keyboard: OnScreenKeyboard,
+    forced_buffer_size: String,
 }
 
 impl Wayfarer {
@@ -43,6 +44,7 @@ impl Wayfarer {
             midi,
             status_text,
             keyboard: OnScreenKeyboard::new(midi_tx),
+            forced_buffer_size: String::new(),
         }
     }
 }
@@ -95,6 +97,42 @@ impl App for Wayfarer {
                         self.audio.set_device(device);
                     }
                 }
+                ui.end_row();
+
+                let buffer_range = self.audio.get_buffer_size_range();
+                ui.label("min buffer size:");
+                ui.label(
+                    buffer_range
+                        .map(|t| t.0.to_string())
+                        .unwrap_or_else(|| "-".to_string()),
+                );
+                ui.end_row();
+
+                ui.label("max buffer size:");
+                ui.label(
+                    buffer_range
+                        .map(|t| t.1.to_string())
+                        .unwrap_or_else(|| "-".to_string()),
+                );
+                ui.end_row();
+
+                ui.label("force buffer size:");
+                if ui
+                    .text_edit_singleline(&mut self.forced_buffer_size)
+                    .lost_focus()
+                {
+                    self.audio
+                        .set_forced_buffer_size(self.forced_buffer_size.parse().ok());
+                }
+                ui.end_row();
+
+                ui.label("actual buffer size:");
+                ui.label(
+                    self.audio
+                        .get_buffer_size()
+                        .map(|b| b.to_string())
+                        .unwrap_or("-".to_string()),
+                );
                 ui.end_row();
 
                 ui.label(&*self.status_text.lock().unwrap());
