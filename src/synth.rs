@@ -20,8 +20,8 @@ struct NoteEvent {
 pub struct Synth {
     clock: u64,
     midi_events: MidiChannel,
-
     note_event: Option<NoteEvent>,
+    lopass: f32,
 }
 
 impl Synth {
@@ -30,6 +30,7 @@ impl Synth {
             clock: 0,
             midi_events,
             note_event: None,
+            lopass: 0.,
         }
     }
 }
@@ -80,7 +81,8 @@ impl SynthPlayer for Synth {
             let freq = note.to_freq_f32();
             for frame in output.chunks_exact_mut(channels) {
                 let time = (self.clock - pressed) as f32 / sample_rate as f32;
-                let mut value = (time * freq * 2f32 * PI).sin();
+                //let mut value = (time * freq * 2f32 * PI).sin();
+                let mut value = (time * freq) % 1. - 0.5;
                 value *= norm_vel;
                 // fade in to avoid pop
                 value *= (time * 1000.).min(1.);
@@ -89,6 +91,11 @@ impl SynthPlayer for Synth {
                     let released_time = (self.clock - released) as f32 / sample_rate as f32;
                     value *= (1. - released_time * 1000.).max(0.);
                 }
+                // hipass
+                let a = (10. / sample_rate as f32).clamp(0., 1.);
+                self.lopass = value * a + self.lopass * (1. - a);
+                println!("lopass {}", self.lopass);
+                value -= self.lopass;
                 // TODO also avoid popping when switching between notes
                 for sample in frame.iter_mut() {
                     *sample = value;
