@@ -70,11 +70,11 @@ impl SynthPlayer for Synth {
             time: note_start,
         }) = self.note_event
         {
+            let norm_vel = (u8::from(velocity) - u8::from(wmidi::U7::MIN)) as f32
+                / (u8::from(wmidi::U7::MAX) - u8::from(wmidi::U7::MIN)) as f32;
+            let freq = note.to_freq_f32();
             for frame in output.chunks_exact_mut(channels) {
                 let time = (self.clock - note_start) as f32 / sample_rate as f32;
-                let norm_vel = (u8::from(velocity) - u8::from(wmidi::U7::MIN)) as f32
-                    / (u8::from(wmidi::U7::MAX) - u8::from(wmidi::U7::MIN)) as f32;
-                let freq = note.to_freq_f32();
                 let value = norm_vel * (time * freq * 2f32 * PI).sin();
                 for sample in frame.iter_mut() {
                     *sample = value;
