@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use crossbeam::channel;
 use wmidi::MidiMessage;
 
@@ -7,11 +9,18 @@ use wmidi::MidiMessage;
 type MidiChannel = channel::Receiver<MidiMessage<'static>>;
 
 #[derive(Clone)]
+struct NoteEvent {
+    note: wmidi::Note,
+    velocity: wmidi::U7,
+    time: u64,
+}
+
+#[derive(Clone)]
 pub struct Synth {
     clock: u64,
     midi_events: MidiChannel,
-    freq: f32,
-    velocity: f32,
+
+    note_event: Option<NoteEvent>,
 }
 
 impl Synth {
@@ -19,8 +28,7 @@ impl Synth {
         Self {
             clock: 0,
             midi_events,
-            freq: 440f32,
-            velocity: 0f32,
+            note_event: None,
         }
     }
 }
@@ -35,31 +43,46 @@ impl SynthPlayer for Synth {
         for message in self.midi_events.try_iter() {
             match message {
                 wmidi::MidiMessage::NoteOn(_, note, velocity) => {
-                    let norm_vel = (u8::from(velocity) - u8::from(wmidi::U7::MIN)) as f32
-                        / (u8::from(wmidi::U7::MAX) - u8::from(wmidi::U7::MIN)) as f32;
-                    self.freq = note.to_freq_f32();
-                    self.velocity = norm_vel;
+                    self.note_event = Some(NoteEvent {
+                        note,
+                        velocity,
+                        time: self.clock,
+                    });
                 }
-                wmidi::MidiMessage::NoteOff(_, _note, _) => {
-                    self.velocity = 0f32;
+                wmidi::MidiMessage::NoteOff(_, note, _) => {
+                    if let Some(NoteEvent {
+                        note: held_note, ..
+                    }) = self.note_event
+                    {
+                        if note == held_note {
+                            self.note_event = None;
+                        }
+                    }
                 }
                 _ => {}
             }
         }
 
         // produce sound
-        for frame in output.chunks_exact_mut(channels) {
-            // TODO mod clock before casting
-            let value = self.velocity
-                * (self.clock as f32 / sample_rate as f32
-                    * self.freq
-                    * 2f32
-                    * std::f32::consts::PI)
-                    .sin();
-            self.clock += 1;
-            for sample in frame.iter_mut() {
-                *sample = value;
+        if let Some(NoteEvent {
+            note,
+            velocity,
+            time: note_start,
+        }) = self.note_event
+        {
+            for frame in output.chunks_exact_mut(channels) {
+                let time = (self.clock - note_start) as f32 / sample_rate as f32;
+                let norm_vel = (u8::from(velocity) - u8::from(wmidi::U7::MIN)) as f32
+                    / (u8::from(wmidi::U7::MAX) - u8::from(wmidi::U7::MIN)) as f32;
+                let freq = note.to_freq_f32();
+                let value = norm_vel * (time * freq * 2f32 * PI).sin();
+                for sample in frame.iter_mut() {
+                    *sample = value;
+                }
+                self.clock += 1;
             }
+        } else {
+            output.fill(0f32);
         }
     }
 }
