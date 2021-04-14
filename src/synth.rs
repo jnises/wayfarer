@@ -83,6 +83,7 @@ impl SynthPlayer for Synth {
             }
         } else {
             output.fill(0f32);
+            self.clock += (output.len() / channels) as u64;
         }
     }
 }
