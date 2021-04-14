@@ -12,7 +12,8 @@ type MidiChannel = channel::Receiver<MidiMessage<'static>>;
 struct NoteEvent {
     note: wmidi::Note,
     velocity: wmidi::U7,
-    time: u64,
+    pressed: u64,
+    released: Option<u64>,
 }
 
 #[derive(Clone)]
@@ -46,16 +47,19 @@ impl SynthPlayer for Synth {
                     self.note_event = Some(NoteEvent {
                         note,
                         velocity,
-                        time: self.clock,
+                        pressed: self.clock,
+                        released: None,
                     });
                 }
                 wmidi::MidiMessage::NoteOff(_, note, _) => {
                     if let Some(NoteEvent {
-                        note: held_note, ..
+                        note: held_note,
+                        ref mut released,
+                        ..
                     }) = self.note_event
                     {
                         if note == held_note {
-                            self.note_event = None;
+                            *released = Some(self.clock);
                         }
                     }
                 }
@@ -67,15 +71,25 @@ impl SynthPlayer for Synth {
         if let Some(NoteEvent {
             note,
             velocity,
-            time: note_start,
+            pressed,
+            released,
         }) = self.note_event
         {
             let norm_vel = (u8::from(velocity) - u8::from(wmidi::U7::MIN)) as f32
                 / (u8::from(wmidi::U7::MAX) - u8::from(wmidi::U7::MIN)) as f32;
             let freq = note.to_freq_f32();
             for frame in output.chunks_exact_mut(channels) {
-                let time = (self.clock - note_start) as f32 / sample_rate as f32;
-                let value = norm_vel * (time * freq * 2f32 * PI).sin();
+                let time = (self.clock - pressed) as f32 / sample_rate as f32;
+                let mut value = (time * freq * 2f32 * PI).sin();
+                value *= norm_vel;
+                // fade in to avoid pop
+                value *= (time * 1000.).min(1.);
+                // fade out
+                if let Some(released) = released {
+                    let released_time = (self.clock - released) as f32 / sample_rate as f32;
+                    value *= (1. - released_time * 1000.).max(0.);
+                }
+                // TODO also avoid popping when switching between notes
                 for sample in frame.iter_mut() {
                     *sample = value;
                 }
