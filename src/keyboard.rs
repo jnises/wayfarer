@@ -1,7 +1,7 @@
-use std::{collections::HashSet, convert::TryFrom};
-
 use crossbeam::channel;
 use eframe::egui;
+use log::warn;
+use std::{collections::HashSet, convert::TryFrom};
 use wmidi::MidiMessage;
 
 fn is_key_black(note: wmidi::Note) -> bool {
@@ -25,7 +25,7 @@ impl OnScreenKeyboard {
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            // start from middle c                        
+            // start from middle c
             for note_num in 60.. {
                 if ui.available_width() <= 0f32 {
                     break;
@@ -42,20 +42,24 @@ impl OnScreenKeyboard {
                 let r = ui.add(b);
                 // egui doesn't seem to have any convenient "pressed" or "released" event
                 if r.is_pointer_button_down_on() {
-                    if !self.key_pressed.insert(r.id) {
-                        let _ignore = self.midi_tx.try_send(MidiMessage::NoteOn(
+                    if self.key_pressed.insert(r.id) {
+                        if let Err(e) = self.midi_tx.try_send(MidiMessage::NoteOn(
                             wmidi::Channel::Ch1,
                             note,
                             wmidi::Velocity::from_u8_lossy(127),
-                        ));
+                        )) {
+                            warn!("error sending note on midi message {}", e);
+                        }
                     }
                 } else {
                     if self.key_pressed.remove(&r.id) {
-                        let _ignore = self.midi_tx.try_send(MidiMessage::NoteOff(
+                        if let Err(e) = self.midi_tx.try_send(MidiMessage::NoteOff(
                             wmidi::Channel::Ch1,
                             note,
                             wmidi::Velocity::from_u8_lossy(0),
-                        ));
+                        )) {
+                            warn!("error sending midi note off message {}", e);
+                        }
                     }
                 }
             }
