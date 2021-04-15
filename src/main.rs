@@ -155,9 +155,12 @@ impl App for Wayfarer {
                 }
                 ui.add(
                     egui::plot::Plot::default()
+                        .include_y(-1.)
+                        .include_y(1.)
                         .curve(egui::plot::Curve::from_ys_f32(
                             &vis_buf[it.len()..it.len() + VIS_SIZE / 2],
                         ))
+                        .width(ui.available_width().min(200.))
                         .view_aspect(2.0)
                         .symmetrical_y_bounds(true),
                 );
