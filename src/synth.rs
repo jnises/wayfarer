@@ -81,8 +81,14 @@ impl SynthPlayer for Synth {
             let freq = note.to_freq_f32();
             for frame in output.chunks_exact_mut(channels) {
                 let time = (self.clock - pressed) as f32 / sample_rate as f32;
-                //let mut value = (time * freq * 2f32 * PI).sin();
-                let mut value = (time * freq) % 1.;
+
+                let angle0 = time * freq * 2.0 * PI;
+                let x0 = angle0.sin();
+                let r1 = 1.0 / 2.0f32.sqrt();
+                let angle1 = -angle0 * r1;
+                let x1 = angle1.sin() * r1;
+                let mut value = x0 + x1;
+
                 value *= norm_vel;
                 // hipass
                 let a = (100. / sample_rate as f32).clamp(0., 1.);
