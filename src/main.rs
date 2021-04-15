@@ -1,12 +1,12 @@
 #![warn(clippy::all, rust_2018_idioms)]
-use std::sync::{Arc};
-
 use cpal::traits::DeviceTrait;
 use crossbeam::channel;
 use eframe::{
     egui::{self, Vec2},
     epi::{self, App},
 };
+use slice_deque::SliceDeque;
+use std::sync::Arc;
 mod keyboard;
 use keyboard::OnScreenKeyboard;
 mod midi;
@@ -18,6 +18,7 @@ use parking_lot::Mutex;
 use synth::Synth;
 
 const NAME: &'static str = "Wayfärer";
+const VIS_SIZE: usize = 512;
 
 struct Wayfarer {
     audio: AudioManager<Synth>,
@@ -25,6 +26,7 @@ struct Wayfarer {
     status_text: Arc<Mutex<String>>,
     keyboard: OnScreenKeyboard,
     forced_buffer_size: Option<u32>,
+    left_vis_buffer: SliceDeque<f32>,
 }
 
 impl Wayfarer {
@@ -46,6 +48,7 @@ impl Wayfarer {
             status_text,
             keyboard: OnScreenKeyboard::new(midi_tx),
             forced_buffer_size: None,
+            left_vis_buffer: SliceDeque::with_capacity(VIS_SIZE),
         }
     }
 }
@@ -134,6 +137,31 @@ impl App for Wayfarer {
                     });
                 });
 
+                let vis_buf = &mut self.left_vis_buffer;
+                self.audio.pop_each_left_vis_buffer(|value| {
+                    vis_buf.push_back(value);
+                });
+
+                let mut prev = None;
+                let mut it = vis_buf.iter().rev();
+                it.nth(VIS_SIZE / 2 - 1);
+                while let Some(&value) = it.next() {
+                    if let Some(prev) = prev {
+                        if prev >= 0. && value < 0. {
+                            break;
+                        }
+                    }
+                    prev = Some(value);
+                }
+                ui.add(
+                    egui::plot::Plot::default()
+                        .curve(egui::plot::Curve::from_ys_f32(
+                            &vis_buf[it.len()..it.len() + VIS_SIZE / 2],
+                        ))
+                        .view_aspect(2.0)
+                        .symmetrical_y_bounds(true),
+                );
+                vis_buf.truncate_front(VIS_SIZE);
                 ui.label(&*self.status_text.lock());
             });
             // put onscreen keyboard at bottom of window

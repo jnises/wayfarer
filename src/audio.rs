@@ -9,6 +9,9 @@ use cpal::{
 };
 use crossbeam::atomic::AtomicCell;
 
+const NUM_CHANNELS: usize = 2;
+const VISUALIZATION_BUFFER_SIZE: usize = 0x10000;
+
 pub struct AudioManager<T> {
     device: Option<Device>,
     config_range: Option<SupportedStreamConfigRange>,
@@ -17,6 +20,7 @@ pub struct AudioManager<T> {
     stream: Option<Stream>,
     error_callback: Arc<Box<dyn Fn(String) -> () + Send + Sync>>,
     synth: T,
+    left_visualization_consumer: Option<ringbuf::Consumer<f32>>,
 }
 
 impl<T> AudioManager<T>
@@ -35,6 +39,7 @@ where
             stream: None,
             error_callback: Arc::new(Box::new(error_callback)),
             synth,
+            left_visualization_consumer: None,
         };
         s.setup();
         s
@@ -105,11 +110,17 @@ where
                     let mut synth = self.synth.clone();
                     let error_callback = self.error_callback.clone();
                     let buffer_size = self.buffer_size.clone();
+                    let (mut left_vis_prod, left_vis_cons) =
+                        ringbuf::RingBuffer::new(VISUALIZATION_BUFFER_SIZE).split();
+                    self.left_visualization_consumer = Some(left_vis_cons);
                     let stream = device.build_output_stream(
                         &config,
                         move |data: &mut [f32], _: &OutputCallbackInfo| {
                             buffer_size.store((data.len() / channels) as u32);
                             synth.play(sample_rate, channels, data);
+                            for chunk in data.chunks_exact(NUM_CHANNELS) {
+                                let _ignore = left_vis_prod.push(chunk[0]);
+                            }
                         },
                         move |error| {
                             error_callback(format!("error: {:?}", error));
@@ -148,6 +159,21 @@ where
         if self.forced_buffer_size != buffer_size {
             self.forced_buffer_size = buffer_size;
             self.setup();
+        }
+    }
+
+    pub fn pop_each_left_vis_buffer<F>(&mut self, mut f: F)
+    where
+        F: FnMut(f32) -> (),
+    {
+        if let Some(ref mut cons) = self.left_visualization_consumer {
+            cons.pop_each(
+                |a| {
+                    f(a);
+                    true
+                },
+                None,
+            );
         }
     }
 }
