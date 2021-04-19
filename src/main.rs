@@ -1,12 +1,12 @@
 #![warn(clippy::all, rust_2018_idioms)]
 use cpal::traits::DeviceTrait;
-use crossbeam::channel;
+use crossbeam::channel::{self, Sender};
 use eframe::{
     egui::{self, Vec2},
     epi::{self, App},
 };
 use slice_deque::SliceDeque;
-use std::sync::Arc;
+use std::{sync::Arc, thread::JoinHandle, time::Duration};
 mod keyboard;
 use keyboard::OnScreenKeyboard;
 mod midi;
@@ -27,6 +27,7 @@ struct Wayfarer {
     keyboard: OnScreenKeyboard,
     forced_buffer_size: Option<u32>,
     left_vis_buffer: SliceDeque<f32>,
+    periodic_updater: Option<(Sender<()>, JoinHandle<()>)>,
 }
 
 impl Wayfarer {
@@ -49,6 +50,7 @@ impl Wayfarer {
             keyboard: OnScreenKeyboard::new(midi_tx),
             forced_buffer_size: None,
             left_vis_buffer: SliceDeque::with_capacity(VIS_SIZE),
+            periodic_updater: None,
         }
     }
 }
@@ -69,7 +71,25 @@ impl App for Wayfarer {
         false
     }
 
-    fn update(&mut self, ctx: &egui::CtxRef, _frame: &mut epi::Frame<'_>) {
+    fn on_exit(&mut self) {
+        if let Some((rx, join)) = self.periodic_updater.take() {
+            rx.send(()).unwrap();
+            join.join().unwrap();
+        }
+    }
+
+    fn update(&mut self, ctx: &egui::CtxRef, frame: &mut epi::Frame<'_>) {
+        // send repaint periodically instead of each frame since the rendering doesn't seem to be vsynced when the window is hidden on mac
+        if self.periodic_updater.is_none() {
+            let repaint_signal = frame.repaint_signal();
+            let (tx, rx) = channel::bounded(1);
+            self.periodic_updater = Some((tx, std::thread::spawn(move || {
+                while rx.try_recv().is_err() {
+                    std::thread::sleep(Duration::from_millis(100));
+                    repaint_signal.request_repaint();
+                }
+            })));
+        }
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading(NAME);
             ui.group(|ui| {
