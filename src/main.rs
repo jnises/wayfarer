@@ -65,6 +65,10 @@ impl App for Wayfarer {
         })
     }
 
+    fn drag_and_drop_support(&self) -> bool {
+        false
+    }
+
     fn update(&mut self, ctx: &egui::CtxRef, _frame: &mut epi::Frame<'_>) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading(NAME);

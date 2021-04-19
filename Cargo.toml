@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-eframe = "0.11"
+eframe = { git = "https://github.com/jnises/egui.git", branch = "no-drag-and-drop" }
 chrono = "0.4"
 cpal = "0.13"
 midir = "0.7"
