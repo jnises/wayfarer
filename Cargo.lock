@@ -660,7 +660,7 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 [[package]]
 name = "eframe"
 version = "0.11.0"
-source = "git+https://github.com/jnises/egui.git?branch=no-drag-and-drop#26a0c102c4a44e82a94fa4744a8db00395574f30"
+source = "git+https://github.com/jnises/egui.git?branch=no-drag-and-drop#e3c283aa5968867730f106e4720a2de8c478b081"
 dependencies = [
  "egui",
  "egui_glium",
@@ -671,7 +671,7 @@ dependencies = [
 [[package]]
 name = "egui"
 version = "0.11.0"
-source = "git+https://github.com/jnises/egui.git?branch=no-drag-and-drop#26a0c102c4a44e82a94fa4744a8db00395574f30"
+source = "git+https://github.com/jnises/egui.git?branch=no-drag-and-drop#e3c283aa5968867730f106e4720a2de8c478b081"
 dependencies = [
  "epaint",
 ]
@@ -679,7 +679,7 @@ dependencies = [
 [[package]]
 name = "egui_glium"
 version = "0.11.0"
-source = "git+https://github.com/jnises/egui.git?branch=no-drag-and-drop#26a0c102c4a44e82a94fa4744a8db00395574f30"
+source = "git+https://github.com/jnises/egui.git?branch=no-drag-and-drop#e3c283aa5968867730f106e4720a2de8c478b081"
 dependencies = [
  "copypasta",
  "egui",
@@ -691,7 +691,7 @@ dependencies = [
 [[package]]
 name = "egui_web"
 version = "0.11.0"
-source = "git+https://github.com/jnises/egui.git?branch=no-drag-and-drop#26a0c102c4a44e82a94fa4744a8db00395574f30"
+source = "git+https://github.com/jnises/egui.git?branch=no-drag-and-drop#e3c283aa5968867730f106e4720a2de8c478b081"
 dependencies = [
  "egui",
  "epi",
@@ -704,7 +704,7 @@ dependencies = [
 [[package]]
 name = "emath"
 version = "0.11.0"
-source = "git+https://github.com/jnises/egui.git?branch=no-drag-and-drop#26a0c102c4a44e82a94fa4744a8db00395574f30"
+source = "git+https://github.com/jnises/egui.git?branch=no-drag-and-drop#e3c283aa5968867730f106e4720a2de8c478b081"
 
 [[package]]
 name = "env_logger"
@@ -722,7 +722,7 @@ dependencies = [
 [[package]]
 name = "epaint"
 version = "0.11.0"
-source = "git+https://github.com/jnises/egui.git?branch=no-drag-and-drop#26a0c102c4a44e82a94fa4744a8db00395574f30"
+source = "git+https://github.com/jnises/egui.git?branch=no-drag-and-drop#e3c283aa5968867730f106e4720a2de8c478b081"
 dependencies = [
  "ahash",
  "atomic_refcell",
@@ -734,7 +734,7 @@ dependencies = [
 [[package]]
 name = "epi"
 version = "0.11.0"
-source = "git+https://github.com/jnises/egui.git?branch=no-drag-and-drop#26a0c102c4a44e82a94fa4744a8db00395574f30"
+source = "git+https://github.com/jnises/egui.git?branch=no-drag-and-drop#e3c283aa5968867730f106e4720a2de8c478b081"
 dependencies = [
  "egui",
 ]
