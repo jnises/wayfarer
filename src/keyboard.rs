@@ -51,15 +51,13 @@ impl OnScreenKeyboard {
                             warn!("error sending note on midi message {}", e);
                         }
                     }
-                } else {
-                    if self.key_pressed.remove(&r.id) {
-                        if let Err(e) = self.midi_tx.try_send(MidiMessage::NoteOff(
-                            wmidi::Channel::Ch1,
-                            note,
-                            wmidi::Velocity::from_u8_lossy(0),
-                        )) {
-                            warn!("error sending midi note off message {}", e);
-                        }
+                } else if self.key_pressed.remove(&r.id) {
+                    if let Err(e) = self.midi_tx.try_send(MidiMessage::NoteOff(
+                        wmidi::Channel::Ch1,
+                        note,
+                        wmidi::Velocity::from_u8_lossy(0),
+                    )) {
+                        warn!("error sending midi note off message {}", e);
                     }
                 }
             }

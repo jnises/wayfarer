@@ -18,7 +18,7 @@ pub struct AudioManager<T> {
     buffer_size: Arc<AtomicCell<u32>>,
     forced_buffer_size: Option<u32>,
     stream: Option<Stream>,
-    error_callback: Arc<Box<dyn Fn(String) -> () + Send + Sync>>,
+    error_callback: Arc<Box<dyn Fn(String) + Send + Sync>>,
     synth: T,
     left_visualization_consumer: Option<ringbuf::Consumer<f32>>,
 }
@@ -29,7 +29,7 @@ where
 {
     pub fn new<U>(synth: T, error_callback: U) -> Self
     where
-        U: Fn(String) -> () + Send + Sync + 'static,
+        U: Fn(String) + Send + Sync + 'static,
     {
         let mut s = Self {
             device: None,
@@ -75,13 +75,12 @@ where
                     self.config_range = Some(
                         device
                             .supported_output_configs()?
-                            .filter(|config| {
+                            // just pick the first valid config
+                            .find(|config| {
                                 // only stereo configs
                                 config.sample_format() == SampleFormat::F32
                                     && config.channels() == 2
                             })
-                            // just pick the first valid config
-                            .next()
                             .ok_or_else(|| anyhow!("no valid output audio config found"))?,
                     );
                 }
@@ -164,7 +163,7 @@ where
 
     pub fn pop_each_left_vis_buffer<F>(&mut self, mut f: F)
     where
-        F: FnMut(f32) -> (),
+        F: FnMut(f32),
     {
         if let Some(ref mut cons) = self.left_visualization_consumer {
             cons.pop_each(

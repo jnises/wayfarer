@@ -17,7 +17,7 @@ mod synth;
 use parking_lot::Mutex;
 use synth::Synth;
 
-const NAME: &'static str = "Wayfärer";
+const NAME: &str = "Wayfärer";
 const VIS_SIZE: usize = 512;
 
 struct Wayfarer {
@@ -107,7 +107,7 @@ impl App for Wayfarer {
             ui.group(|ui| {
                 ui.horizontal(|ui| {
                     ui.label("audio:");
-                    let mut selected = self.audio.get_name().unwrap_or("-".to_string());
+                    let mut selected = self.audio.get_name().unwrap_or_else(|| "-".to_string());
                     egui::ComboBox::from_id_source("audio combo box")
                         .selected_text(&selected)
                         .show_ui(ui, |ui| {
