@@ -22,16 +22,14 @@ impl MidiReader {
                 .connect(
                     port,
                     &name,
-                    move |_time_ms, message, _| {
-                        match wmidi::MidiMessage::try_from(message) {
-                            Ok(message) => {
-                                if let Err(e) = midi_events.try_send(message.to_owned()) {
-                                    error!("error sending midi event {}", e);
-                                }
+                    move |_time_ms, message, _| match wmidi::MidiMessage::try_from(message) {
+                        Ok(message) => {
+                            if let Err(e) = midi_events.try_send(message.to_owned()) {
+                                error!("error sending midi event {}", e);
                             }
-                            Err(e) => {
-                                error!("error parsingi midi event {}", e);
-                            }
+                        }
+                        Err(e) => {
+                            error!("error parsingi midi event {}", e);
                         }
                     },
                     (),

@@ -83,12 +83,15 @@ impl App for Wayfarer {
         if self.periodic_updater.is_none() {
             let repaint_signal = frame.repaint_signal();
             let (tx, rx) = channel::bounded(1);
-            self.periodic_updater = Some((tx, std::thread::spawn(move || {
-                while rx.try_recv().is_err() {
-                    std::thread::sleep(Duration::from_millis(100));
-                    repaint_signal.request_repaint();
-                }
-            })));
+            self.periodic_updater = Some((
+                tx,
+                std::thread::spawn(move || {
+                    while rx.try_recv().is_err() {
+                        std::thread::sleep(Duration::from_millis(100));
+                        repaint_signal.request_repaint();
+                    }
+                }),
+            ));
         }
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading(NAME);
