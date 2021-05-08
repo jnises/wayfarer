@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 # egui 0.11.0 does not contain all the fixes we need
-eframe = { git = "https://github.com/emilk/egui.git", ref = "0d71017ad434dabd6bfcec98e8025a7378a70161" }
+eframe = { git = "https://github.com/emilk/egui.git", rev = "0d71017ad434dabd6bfcec98e8025a7378a70161" }
 chrono = "0.4"
 cpal = "0.13"
 midir = "0.7"
