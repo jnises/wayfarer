@@ -60,17 +60,6 @@ impl App for Wayfarer {
         NAME
     }
 
-    fn initial_window_size(&self) -> Option<Vec2> {
-        Some(Vec2 {
-            x: 400f32,
-            y: 300f32,
-        })
-    }
-
-    fn drag_and_drop_support(&self) -> bool {
-        false
-    }
-
     fn on_exit(&mut self) {
         if let Some((rx, join)) = self.periodic_updater.take() {
             rx.send(()).unwrap();
@@ -204,5 +193,13 @@ impl App for Wayfarer {
 fn main() {
     env_logger::init();
     let app = Box::new(Wayfarer::new());
-    eframe::run_native(app);
+    eframe::run_native(app, epi::NativeOptions {
+        // has to be disabled to work with cpal
+        drag_and_drop_support: false,
+        initial_window_size: Some(Vec2 {
+            x: 400f32,
+            y: 300f32,
+        }),
+        ..Default::default()
+    });
 }

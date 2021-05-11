@@ -1,14 +1,13 @@
 [package]
 name = "wayfarer"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["joel nises <joel.nises@gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# egui 0.11.0 does not contain all the fixes we need
-eframe = { git = "https://github.com/emilk/egui.git", rev = "0d71017ad434dabd6bfcec98e8025a7378a70161" }
+eframe = "0.12"
 chrono = "0.4"
 cpal = "0.13"
 midir = "0.7"
