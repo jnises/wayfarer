@@ -34,11 +34,11 @@ impl OnScreenKeyboard {
                     Ok(note) => note,
                     Err(_) => break,
                 };
-                let b = egui::Button::new(" ").fill(Some(if is_key_black(note) {
+                let b = egui::Button::new(" ").fill(if is_key_black(note) {
                     egui::Color32::BLACK
                 } else {
                     egui::Color32::WHITE
-                }));
+                });
                 let r = ui.add(b);
                 // egui doesn't seem to have any convenient "pressed" or "released" event
                 if r.is_pointer_button_down_on() {
