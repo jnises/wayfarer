@@ -1,6 +1,6 @@
 [package]
 name = "wayfarer"
-version = "0.2.3"
+version = "0.2.4"
 authors = ["joel nises <joel.nises@gmail.com>"]
 edition = "2018"
 
@@ -14,7 +14,7 @@ midir = "0.7"
 wmidi = "4.0"
 crossbeam = "0.8"
 anyhow = "1.0"
-env_logger = "0.8"
+env_logger = "0.9"
 log = "0.4"
 parking_lot = "0.11"
 ringbuf = "0.2"
