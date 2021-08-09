@@ -9,8 +9,7 @@ use eframe::{
     epi::{self, App},
 };
 use parking_lot::Mutex;
-use slice_deque::SliceDeque;
-use std::{sync::Arc, thread::JoinHandle, time::Duration};
+use std::{collections::VecDeque, sync::Arc, thread::JoinHandle, time::Duration};
 
 const NAME: &str = "Wayfärer";
 const VIS_SIZE: usize = 512;
@@ -21,7 +20,7 @@ pub struct Wayfarer {
     status_text: Arc<Mutex<String>>,
     keyboard: OnScreenKeyboard,
     forced_buffer_size: Option<u32>,
-    left_vis_buffer: SliceDeque<f32>,
+    left_vis_buffer: VecDeque<f32>,
     periodic_updater: Option<(Sender<()>, JoinHandle<()>)>,
 }
 
@@ -44,7 +43,7 @@ impl Wayfarer {
             status_text,
             keyboard: OnScreenKeyboard::new(midi_tx),
             forced_buffer_size: None,
-            left_vis_buffer: SliceDeque::with_capacity(VIS_SIZE),
+            left_vis_buffer: VecDeque::with_capacity(VIS_SIZE),
             periodic_updater: None,
         }
     }
@@ -154,9 +153,9 @@ impl App for Wayfarer {
                 });
 
                 let mut prev = None;
-                let mut it = vis_buf.iter().rev();
+                let mut it = vis_buf.iter().copied().rev();
                 it.nth(VIS_SIZE / 2 - 1);
-                while let Some(&value) = it.next() {
+                while let Some(value) = it.next() {
                     if let Some(prev) = prev {
                         if prev >= 0. && value < 0. {
                             break;
@@ -168,13 +167,20 @@ impl App for Wayfarer {
                     egui::plot::Plot::new("waveform")
                         .include_y(-1.)
                         .include_y(1.)
-                        .line(egui::plot::Line::new(egui::plot::Values::from_ys_f32(
-                            &vis_buf[it.len()..it.len() + VIS_SIZE / 2],
+                        .line(egui::plot::Line::new(egui::plot::Values::from_values_iter(
+                            it.take(VIS_SIZE / 2)
+                                .enumerate()
+                                .map(|(x, y)| egui::plot::Value {
+                                    x: x as f64,
+                                    y: y as f64,
+                                }),
                         )))
                         .width(ui.available_width().min(200.))
                         .view_aspect(2.0),
                 );
-                vis_buf.truncate_front(VIS_SIZE);
+                if vis_buf.len() > VIS_SIZE {
+                    drop(vis_buf.drain(0..vis_buf.len() - VIS_SIZE / 2));
+                }
                 ui.label(&*self.status_text.lock());
             });
             // put onscreen keyboard at bottom of window
