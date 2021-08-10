@@ -330,6 +330,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "console_error_panic_hook"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8d976903543e0c48546a91908f21588a680a8c8f984df9a5d69feccb2b2a211"
+dependencies = [
+ "cfg-if 0.1.10",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "copypasta"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -919,6 +929,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bee0328b1209d157ef001c94dd85b4f8f64139adb0eac2659f4b08382b2f474d"
 dependencies = [
  "cfg-if 1.0.0",
+ "js-sys",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
@@ -1852,6 +1865,7 @@ version = "0.2.4"
 dependencies = [
  "anyhow",
  "chrono",
+ "console_error_panic_hook",
  "cpal",
  "crossbeam",
  "eframe",
@@ -1860,6 +1874,7 @@ dependencies = [
  "midir",
  "parking_lot",
  "ringbuf",
+ "web-sys",
  "wmidi",
 ]
 
