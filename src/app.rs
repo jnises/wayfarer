@@ -53,7 +53,7 @@ impl Wayfarer {
             status_text,
             keyboard: OnScreenKeyboard::new(midi_tx),
             forced_buffer_size: None,
-            left_vis_buffer: VecDeque::with_capacity(VIS_SIZE),
+            left_vis_buffer: VecDeque::with_capacity(VIS_SIZE * 2),
             synth,
             // periodic_updater: None,
         }
