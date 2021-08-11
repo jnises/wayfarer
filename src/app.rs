@@ -6,13 +6,59 @@ use cpal::traits::DeviceTrait;
 use crossbeam::channel::{self, Sender};
 use eframe::{
     egui,
-    epi::{self, App},
+    epi::{self, App, RepaintSignal},
 };
 use parking_lot::Mutex;
 use std::{collections::VecDeque, sync::Arc, thread::JoinHandle, time::Duration};
 
 const NAME: &str = "Wayfärer";
 const VIS_SIZE: usize = 512;
+
+type Repainter = std::sync::Arc<dyn RepaintSignal>;
+cfg_if::cfg_if! {
+    if #[cfg(target_arch = "wasm32")] {
+        struct PeriodicUpdater {
+
+        }
+
+        impl PeriodicUpdater {
+            fn new(repaint_signal: Repainter) -> Self {
+                PeriodicUpdater{}
+            }
+        }
+
+
+        impl Drop for PeriodicUpdater {
+            fn drop(&mut self) {
+            }
+        }        
+    } else {
+        struct PeriodicUpdater {
+            quitter: Sender<()>,
+            join_handle: Option<JoinHandle<()>>,
+        }
+
+        impl PeriodicUpdater {
+            fn new(repaint_signal: Repainter) -> Self {
+                let (tx, rx) = channel::bounded(1);
+                let join_handle = Some(std::thread::spawn(move || {
+                        while rx.try_recv().is_err() {
+                            std::thread::sleep(Duration::from_millis(100));
+                            repaint_signal.request_repaint();
+                        }
+                    }));
+                PeriodicUpdater{quitter: tx, join_handle}
+            }
+        }
+
+        impl Drop for PeriodicUpdater {
+            fn drop(&mut self) {
+                self.quitter.send(()).unwrap();
+                self.join_handle.take().unwrap().join().unwrap();                
+            }
+        }
+    }
+}
 
 pub struct Wayfarer {
     audio: Option<AudioManager<Synth>>,
@@ -23,8 +69,7 @@ pub struct Wayfarer {
     forced_buffer_size: Option<u32>,
     left_vis_buffer: VecDeque<f32>,
     synth: Option<Synth>,
-    // TODO do this using timers on wasm
-    // periodic_updater: Option<(Sender<()>, JoinHandle<()>)>,
+    periodic_updater: Option<PeriodicUpdater>,
 }
 
 impl Wayfarer {
@@ -55,7 +100,7 @@ impl Wayfarer {
             forced_buffer_size: None,
             left_vis_buffer: VecDeque::with_capacity(VIS_SIZE * 2),
             synth,
-            // periodic_updater: None,
+            periodic_updater: None,
         }
     }
 }
@@ -65,28 +110,11 @@ impl App for Wayfarer {
         NAME
     }
 
-    // fn on_exit(&mut self) {
-    //     if let Some((rx, join)) = self.periodic_updater.take() {
-    //         rx.send(()).unwrap();
-    //         join.join().unwrap();
-    //     }
-    // }
+    fn on_exit(&mut self) {
+        self.periodic_updater.take();
+    }
 
     fn update(&mut self, ctx: &egui::CtxRef, frame: &mut epi::Frame<'_>) {
-        // send repaint periodically instead of each frame since the rendering doesn't seem to be vsynced when the window is hidden on mac
-        // if self.periodic_updater.is_none() {
-        //     let repaint_signal = frame.repaint_signal();
-        //     let (tx, rx) = channel::bounded(1);
-        //     self.periodic_updater = Some((
-        //         tx,
-        //         std::thread::spawn(move || {
-        //             while rx.try_recv().is_err() {
-        //                 std::thread::sleep(Duration::from_millis(100));
-        //                 repaint_signal.request_repaint();
-        //             }
-        //         }),
-        //     ));
-        // }
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading(NAME);
             if self.audio.is_none() {
@@ -97,22 +125,21 @@ impl App for Wayfarer {
                     }));
                 }
             } else {
+                // send repaint periodically instead of each frame since the rendering doesn't seem to be vsynced when the window is hidden on mac
+                if self.periodic_updater.is_none() {
+                    let repaint_signal = frame.repaint_signal();
+                    self.periodic_updater = Some(PeriodicUpdater::new(repaint_signal));
+                }
                 let audio = self.audio.as_mut().expect("should have audio by now");
                 let midi = &self.midi;
                 let left_vis_buffer = &mut self.left_vis_buffer;
                 let forced_buffer_size = &mut self.forced_buffer_size;
                 let status_text = &self.status_text;
                 let keyboard = &mut self.keyboard;
-                frame.repaint_signal();
                 ui.group(|ui| {
                     ui.horizontal(|ui| {
                         ui.label("midi:");
-                        ui.label(
-                            midi
-                                .as_ref()
-                                .map(|midi| midi.get_name())
-                                .unwrap_or("-"),
-                        );
+                        ui.label(midi.as_ref().map(|midi| midi.get_name()).unwrap_or("-"));
                     });
                 });
 

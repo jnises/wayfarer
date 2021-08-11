@@ -1865,6 +1865,7 @@ name = "wayfarer"
 version = "0.2.4"
 dependencies = [
  "anyhow",
+ "cfg-if 1.0.0",
  "chrono",
  "console_error_panic_hook",
  "cpal",

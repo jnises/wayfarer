@@ -8,7 +8,7 @@ use cpal::{
     SupportedStreamConfigRange,
 };
 use crossbeam::atomic::AtomicCell;
-use log::{info, warn};
+use log::warn;
 
 const NUM_CHANNELS: usize = 2;
 const VISUALIZATION_BUFFER_SIZE: usize = 0x10000;

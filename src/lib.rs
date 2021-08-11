@@ -1,4 +1,8 @@
+// this file is used when targeting wasm
+
 #![warn(clippy::all, rust_2018_idioms)]
+cfg_if::cfg_if! {
+if #[cfg(target_arch = "wasm32")] {
 
 use log::{warn, Level, Metadata, Record};
 use web_sys::console;
@@ -12,7 +16,7 @@ mod app;
 pub use app::Wayfarer;
 
 struct WebLogger;
-// doesn't this already exist?
+// isn't there a ready made crate for this functionality somewhere
 impl log::Log for WebLogger {
     fn enabled(&self, metadata: &Metadata<'_>) -> bool {
         metadata.level() <= Level::Info
@@ -34,10 +38,8 @@ impl log::Log for WebLogger {
 }
 static LOGGER: WebLogger = WebLogger;
 
-#[cfg(target_arch = "wasm32")]
 use eframe::wasm_bindgen::{self, prelude::*};
 
-#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn start(canvas_id: &str) -> Result<(), eframe::wasm_bindgen::JsValue> {
     #[cfg(debug_assertions)]
@@ -47,3 +49,4 @@ pub fn start(canvas_id: &str) -> Result<(), eframe::wasm_bindgen::JsValue> {
     let app = Wayfarer::new();
     eframe::start_web(canvas_id, Box::new(app))
 }
+}}
