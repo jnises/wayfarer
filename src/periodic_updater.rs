@@ -3,19 +3,26 @@ use eframe::epi::RepaintSignal;
 type Repainter = std::sync::Arc<dyn RepaintSignal>;
 cfg_if::cfg_if! {
     if #[cfg(target_arch = "wasm32")] {
+        use eframe::wasm_bindgen::{prelude::Closure, JsCast};
         pub struct PeriodicUpdater {
-
+            handle: i32,
         }
 
         impl PeriodicUpdater {
-            fn new(repaint_signal: Repainter) -> Self {
-                PeriodicUpdater{}
+            pub fn new(repaint_signal: Repainter) -> Self {
+                let win = web_sys::window().unwrap();
+                let f = Closure::wrap(Box::new(move || {
+                    repaint_signal.request_repaint();
+                }) as Box<dyn Fn()>);
+                let handle = win.set_interval_with_callback_and_timeout_and_arguments_0(f.as_ref().unchecked_ref(), 100).unwrap();
+                PeriodicUpdater{handle}
             }
         }
 
 
         impl Drop for PeriodicUpdater {
             fn drop(&mut self) {
+                web_sys::window().unwrap().clear_interval_with_handle(self.handle);
             }
         }        
     } else {
