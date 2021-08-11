@@ -11,6 +11,7 @@ mod audio;
 mod keyboard;
 mod midi;
 mod synth;
+mod periodic_updater;
 
 mod app;
 pub use app::Wayfarer;

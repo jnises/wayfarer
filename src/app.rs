@@ -2,63 +2,20 @@ use crate::audio::AudioManager;
 use crate::keyboard::OnScreenKeyboard;
 use crate::midi::MidiReader;
 use crate::synth::Synth;
+use crate::periodic_updater::PeriodicUpdater;
 use cpal::traits::DeviceTrait;
-use crossbeam::channel::{self, Sender};
+use crossbeam::channel;
 use eframe::{
     egui,
-    epi::{self, App, RepaintSignal},
+    epi::{self, App},
 };
 use parking_lot::Mutex;
-use std::{collections::VecDeque, sync::Arc, thread::JoinHandle, time::Duration};
+use std::{collections::VecDeque, sync::Arc};
 
 const NAME: &str = "Wayfärer";
 const VIS_SIZE: usize = 512;
 
-type Repainter = std::sync::Arc<dyn RepaintSignal>;
-cfg_if::cfg_if! {
-    if #[cfg(target_arch = "wasm32")] {
-        struct PeriodicUpdater {
 
-        }
-
-        impl PeriodicUpdater {
-            fn new(repaint_signal: Repainter) -> Self {
-                PeriodicUpdater{}
-            }
-        }
-
-
-        impl Drop for PeriodicUpdater {
-            fn drop(&mut self) {
-            }
-        }        
-    } else {
-        struct PeriodicUpdater {
-            quitter: Sender<()>,
-            join_handle: Option<JoinHandle<()>>,
-        }
-
-        impl PeriodicUpdater {
-            fn new(repaint_signal: Repainter) -> Self {
-                let (tx, rx) = channel::bounded(1);
-                let join_handle = Some(std::thread::spawn(move || {
-                        while rx.try_recv().is_err() {
-                            std::thread::sleep(Duration::from_millis(100));
-                            repaint_signal.request_repaint();
-                        }
-                    }));
-                PeriodicUpdater{quitter: tx, join_handle}
-            }
-        }
-
-        impl Drop for PeriodicUpdater {
-            fn drop(&mut self) {
-                self.quitter.send(()).unwrap();
-                self.join_handle.take().unwrap().join().unwrap();                
-            }
-        }
-    }
-}
 
 pub struct Wayfarer {
     audio: Option<AudioManager<Synth>>,
@@ -90,7 +47,6 @@ impl Wayfarer {
                 *status_clone.lock() = e;
             }))
         };
-        debug_assert!(synth.is_some());
         Self {
             audio,
             midi,
