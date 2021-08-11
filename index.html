@@ -39,12 +39,16 @@
 </head>
 
 <body>
+    <input id="startbutton" type="button" value="start"/>
     <canvas id="the_canvas_id"></canvas>
     <script type="module">
       import init, {start} from '/pkg/package.js'
       ;(async () => {
           let w = await init('/pkg/package_bg.wasm')
-          start('the_canvas_id')
+          const start_button = document.getElementById("startbutton");
+            start_button.addEventListener("click", () => {
+                start('the_canvas_id')
+            });
       })()
     </script>
 </body>

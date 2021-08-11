@@ -37,7 +37,7 @@ impl Wayfarer {
         let mut synth = Some(Synth::new(midi_rx));
         let status_text = Arc::new(Mutex::new(initial_status));
         // can't init audio here for wasm since that gets blocked by chrome's autoplay check
-        let audio = if cfg!(target_arch = "wasm32") {
+        let audio = if false { //if cfg!(target_arch = "wasm32") {
             None
         } else {
             let status_clone = status_text.clone();
@@ -45,7 +45,7 @@ impl Wayfarer {
                 *status_clone.lock() = e;
             }))
         };
-        debug_assert!(synth.is_some());
+        //debug_assert!(synth.is_some());
         Self {
             audio,
             midi,
