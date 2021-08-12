@@ -80,6 +80,7 @@ impl App for Wayfarer {
                 }
             } else {
                 // send repaint periodically instead of each frame since the rendering doesn't seem to be vsynced when the window is hidden on mac
+                // TODO stop this when not in focus
                 if self.periodic_updater.is_none() {
                     let repaint_signal = frame.repaint_signal();
                     self.periodic_updater = Some(PeriodicUpdater::new(repaint_signal));
@@ -140,7 +141,8 @@ impl App for Wayfarer {
                                     None => audio.get_buffer_size().unwrap_or(0),
                                 };
                                 let range = match buffer_range {
-                                    Some((min, max)) => min..=max,
+                                    // limit max to something sensible
+                                    Some((min, max)) => min..=max.min(16384),
                                     None => 0..=1,
                                 };
                                 ui.add(egui::Slider::new(&mut size, range));

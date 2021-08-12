@@ -16,7 +16,7 @@ cfg_if::cfg_if! {
                     repaint_signal.request_repaint();
                 }) as Box<dyn Fn()>);
                 let handle = win.set_interval_with_callback_and_timeout_and_arguments_0(f.as_ref().unchecked_ref(), 100).unwrap();
-                PeriodicUpdater{
+                PeriodicUpdater {
                     _closure: f,
                     handle
                 }
