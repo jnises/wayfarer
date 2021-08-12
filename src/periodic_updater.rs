@@ -5,6 +5,7 @@ cfg_if::cfg_if! {
     if #[cfg(target_arch = "wasm32")] {
         use eframe::wasm_bindgen::{prelude::Closure, JsCast};
         pub struct PeriodicUpdater {
+            _closure: Closure<dyn Fn()>,
             handle: i32,
         }
 
@@ -15,7 +16,10 @@ cfg_if::cfg_if! {
                     repaint_signal.request_repaint();
                 }) as Box<dyn Fn()>);
                 let handle = win.set_interval_with_callback_and_timeout_and_arguments_0(f.as_ref().unchecked_ref(), 100).unwrap();
-                PeriodicUpdater{handle}
+                PeriodicUpdater{
+                    _closure: f,
+                    handle
+                }
             }
         }
 
