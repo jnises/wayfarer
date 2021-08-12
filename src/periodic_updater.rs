@@ -24,7 +24,7 @@ cfg_if::cfg_if! {
             fn drop(&mut self) {
                 web_sys::window().unwrap().clear_interval_with_handle(self.handle);
             }
-        }        
+        }
     } else {
         use crossbeam::channel::{self, Sender};
         use std::{thread::JoinHandle, time::Duration};
@@ -50,7 +50,7 @@ cfg_if::cfg_if! {
         impl Drop for PeriodicUpdater {
             fn drop(&mut self) {
                 self.quitter.send(()).unwrap();
-                self.join_handle.take().unwrap().join().unwrap();                
+                self.join_handle.take().unwrap().join().unwrap();
             }
         }
     }

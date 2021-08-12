@@ -1,8 +1,8 @@
 use crate::audio::AudioManager;
 use crate::keyboard::OnScreenKeyboard;
 use crate::midi::MidiReader;
-use crate::synth::Synth;
 use crate::periodic_updater::PeriodicUpdater;
+use crate::synth::Synth;
 use cpal::traits::DeviceTrait;
 use crossbeam::channel;
 use eframe::{
@@ -14,8 +14,6 @@ use std::{collections::VecDeque, sync::Arc};
 
 const NAME: &str = "Wayfärer";
 const VIS_SIZE: usize = 512;
-
-
 
 pub struct Wayfarer {
     audio: Option<AudioManager<Synth>>,
