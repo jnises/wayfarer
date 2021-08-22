@@ -19,11 +19,9 @@ pub struct Data {
     audio: AudioManager<Synth>,
     midi: Arc<MidiReader>,
     status_text: Arc<Mutex<String>>,
-    status_clone: Arc<Mutex<String>>,
     keyboard: OnScreenKeyboard,
     forced_buffer_size: Option<u32>,
     left_vis_buffer: VecDeque<f32>,
-    synth: Option<Synth>,
     synth_params: Arc<Params>,
     periodic_updater: Option<PeriodicUpdater>,
 }
@@ -37,22 +35,20 @@ impl Wayfarer {
     pub fn init(&mut self) {
         let (midi_tx, midi_rx) = channel::bounded(256);
         let midi = MidiReader::new(midi_tx.clone());
-        let mut synth = Some(Synth::new(midi_rx));
+        let synth = Synth::new(midi_rx);
         let status_text = Arc::new(Mutex::new("".to_string()));
+        let synth_params = synth.get_params();
         let status_clone = status_text.clone();
-        let synth_params = synth.as_ref().unwrap().get_params();
-        let audio = AudioManager::new(synth.take().unwrap(), move |e| {
+        let audio = AudioManager::new(synth, move |e| {
             *status_clone.lock() = e;
         });
         *self = Self::Initialized(Data {
             audio,
             midi,
-            status_clone: status_text.clone(),
             status_text,
             keyboard: OnScreenKeyboard::new(midi_tx),
             forced_buffer_size: None,
             left_vis_buffer: VecDeque::with_capacity(VIS_SIZE * 2),
-            synth,
             synth_params,
             periodic_updater: None,
         });
