@@ -5,6 +5,7 @@ mod keyboard;
 mod midi;
 mod periodic_updater;
 mod synth;
+mod timer;
 
 mod app;
 use app::Wayfarer;
