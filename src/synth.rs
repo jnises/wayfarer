@@ -1,6 +1,6 @@
-use std::f32::consts::PI;
+use std::{f32::consts::PI, sync::Arc};
 
-use crossbeam::channel;
+use crossbeam::{atomic::AtomicCell, channel};
 use wmidi::MidiMessage;
 
 // super simple synth
@@ -16,12 +16,18 @@ struct NoteEvent {
     released: Option<u64>,
 }
 
+// TODO handle params using messages instead?
+pub struct Params {
+    pub gain: AtomicCell<f32>,
+}
+
 #[derive(Clone)]
 pub struct Synth {
     clock: u64,
     midi_events: MidiChannel,
 
     note_event: Option<NoteEvent>,
+    params: Arc<Params>,
 }
 
 impl Synth {
@@ -30,7 +36,14 @@ impl Synth {
             clock: 0,
             midi_events,
             note_event: None,
+            params: Arc::new(Params {
+                gain: 1f32.into(),
+            }),
         }
+    }
+
+    pub fn get_params(&self) -> Arc<Params> {
+        self.params.clone()
     }
 }
 
@@ -75,6 +88,7 @@ impl SynthPlayer for Synth {
             released,
         }) = self.note_event
         {
+            let gain = self.params.gain.load();
             let norm_vel = (u8::from(velocity) - u8::from(wmidi::U7::MIN)) as f32
                 / (u8::from(wmidi::U7::MAX) - u8::from(wmidi::U7::MIN)) as f32;
             let freq = note.to_freq_f32();
@@ -82,6 +96,7 @@ impl SynthPlayer for Synth {
                 let time = (self.clock - pressed) as f32 / sample_rate as f32;
                 let mut value = (time * freq * 2f32 * PI).sin();
                 value *= norm_vel;
+                value *= gain;
                 // fade in to avoid pop
                 value *= (time * 1000.).min(1.);
                 // fade out
