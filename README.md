@@ -2,6 +2,8 @@
 
 Midi synth template project written in rust.
 
+![screenshot](docs/screenshot.jpg)
+
 ## To build and run natively:
 ```
 cargo run --release
