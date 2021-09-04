@@ -24,7 +24,7 @@ args = ["--port", "${PORT}", "web"]
 [tasks.copy_web_src]
 script = '''
 mkdir -p web
-cp -r web_src/ web/
+cp -r web_src/* web/
 '''
 
 [tasks.build_web]
