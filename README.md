@@ -22,4 +22,4 @@ cargo make watch
 cargo make serve
 ```
  
-The open a browser (with webmidi support) and point it to http://localhost:8000
+Then open a browser (with webmidi support) and point it to http://localhost:8000
